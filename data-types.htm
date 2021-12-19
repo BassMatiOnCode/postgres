@@ -1,0 +1,86 @@
+﻿<!DOCTYPE html>
+<html lang="en-US"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="template-info" file-name="empty.htm"version="2021-08-23" editor-name="usp" />
+<meta name="author" content="usp" />
+<meta name="creation-date" content="2021-12-15" />
+<meta name="editor" content="usp" />
+<meta name="change-date" content="2021-12-15" />
+<meta name="version" content="1" />
+<meta name="categories" content="Programming > Databases > Postgres" />
+<meta name="tags" content="programming, database, postgres, type" />
+<meta name="description" content="An overview of Postgres data types." />
+
+<link rel="stylesheet" href="/inc/page.css" />
+ 
+<title>Postgres - Data Types</title>
+
+</head><body><div id="page-header"></div><div id="main-toolbar"></div><div id="content">
+
+<h1>Data Types</h1>
+
+<p id="page-abstract"></p>
+
+<h2 cbc>Array</h2><div>
+
+<p>Postgres knows multi-dimensional arrays. In a variable declaration, each dimension is represented by a set of square brackets:</p>
+
+<figcaption class="listing">Array type declaration</figcaption>
+<pre>
+chessboard text [ ] [ ];
+numbers integer ARRAY [ 4 ];
+letters char ARRAY;
+</pre>
+
+<p>You can specify dimension sizes, but they are currently (v14) ignored. The standards-compliant <tt>ARRAY</tt> keyword for one-dimensional arrays may be omitted in Postgres.</p>
+<p>Array literals are written as strings with curly braces, elements are usually separated with commas. Alternatively, the array constructor syntax can be used:</p>
+
+<figcaption class="listing">Array literal notation and constructor syntax</figcaption>
+<pre>
+'{ 1, 2, 3 }'
+'{ 1, 3, 4 } , { 4, 5 6 } , { 7, 8, 9 } }'
+'{ "a" , "b" , "c" }'
+ARRAY [ [ 1, 2, 3 ] , [ 4, 5, 6 ] , [ 7, 8, 9 ] ]
+ARRAY [ 'a' , 'b' , 'c' ]
+</pre>
+
+<p>Values are ordinary constants or expressions. String values in array literal syntax must be enclosed in double quotes. In array constructor notation, use single quotes.</p>
+
+<p>Here is an example of arrays in an SQL statement:</p>
+
+<figcaption class="lisitng">Using arrays</figcaption>
+<pre>
+INSERT INTO mytable 
+VALUES ( 'a', ARRAY [ 1, 2, 3 ], ARRAY [ [ 'a', 'b', 'c' ], [ 'd', 'e', 'f' ] ] ) ;
+</pre>
+
+<p>Array index values start from 1 for the first element. Slices are defined by two numbers, separated by a colon:</p>
+
+<figcaption class="listing">Array slice notation</figcaption>
+<pre>numbers [ 2 : 3 ] </pre>
+
+<h3>Array Functions</h3><div>
+
+<dl>
+<dt>array_dims</dt>
+<dd>Returns the array dimensions in readable form.</dd>
+<dt>array_lower, array_upper</dt>
+<dd>Lower and upper bounds of an array</dd>
+<dt>array_length</dt>
+<dd>Number of elements in an array</dd>
+<dt>array_prepend</dt>
+<dd>Inserts elements in front of the array</dd>
+<dt>array_append</dt>
+<dd>Appends elements to the end of the array</dd>
+<dt>array_cat</dt>
+<dd>Concatenates arrays.</dd>
+</dl>
+
+<!-- h3 Array Functions --></div>
+
+<p>More information: <a href="https://www.postgresql.org/docs/9.1/arrays.html">postgresql.org/docs/9.1/arrays</a>.</p>
+
+<!-- h2 Array --></div>
+
+</div><script type="module" src="/inc/page.js" ></script></body></html>

@@ -1,0 +1,81 @@
+﻿<!DOCTYPE html>
+<html lang="en-US"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="template-info" file-name="empty.htm"version="2021-08-23" editor-name="usp" />
+<meta name="author" content="usp" />
+<meta name="creation-date" content="2021-12-16" />
+<meta name="editor" content="usp" />
+<meta name="change-date" content="2021-12-16" />
+<meta name="version" content="1" />
+<meta name="categories" content="Programming > Databases > Postgres" />
+<meta name="tags" content="programming, database, postgres, type, dynamic, sql" />
+<meta name="description" content="Sometimes SQL statements are not known ahead of time. With dynamic SQL, statements can be compiled and executed at runtime. In these cases, EXECUTE is the tool of choice." />
+
+<link rel="stylesheet" href="/inc/page.css" />
+ 
+<title>Postgres - Dynamic SQL</title>
+
+</head><body><div id="page-header"></div><div id="main-toolbar"></div><div id="content">
+
+<h1>Dynamic SQL</h1>
+
+<p id="page-abstract"></p>
+
+<p>A string variable can be prepared with SQL commands and executed with the <tt>EXECUTE</tt> command:</p>
+
+<figcaption class="listing">Excecuting an SQL string</figcaption>
+<pre>EXECUTE command-string [ INTO [ STRICT ] target ] [ USING expression [, &hellip; ] ;</pre>
+
+<p>The result can be stored in the <tt>target</tt>, which can be a record variable, a row variable, or a comma-separated list of simple variables and record or row fields. The <tt>USING</tt> keyword precedes a comma-separated list of values to the SQL commands. They are inserted into the placeholders $1, $2, etc, and can only be used for values, not table or column names. If you want more control, you will have to build the command string accordingly. A useful function is the <tt>format</tt> function:</p>
+
+<p>The command execution plan is not cached, the statement is planned for each execution.</p>
+
+<h2 cbc>Execute Immediate</h2><div>
+
+<p>EXECUTE IMMEDIATE executes an SQL statement contained in a string variable, but does not return a result set.</p>
+
+<figcaption class="listing">Statement without result set</figcaption>
+<pre>
+EXEC SQL BEGIN DECLARE SECTION;
+const char *stmt = "CREATE TABLE my_table (...);" ;
+EXEC SQL END DECLARE SECTION;
+EXEC SQL EXECUTE IMMEDIATE :stmt;</pre>
+<!-- h2 Execute Immediate --></div>
+
+<h2 cbc>Execute Prepared Statements</h2><div>
+
+<p>Prepared statments han have parameters, they can be set after the <tt>USING</tt> keyword:</p>
+
+<figcaption class="listing">Prepared statment with parametesr</figcaption>
+<pre>
+EXEC SQL BEGIN DECLARE SECTION;
+const char *stmt = "INSERT INTO my_table VALUES (?,?);";
+EXEC SQL END DECLARE SECTION;
+EXEC SQL PREPARE my_stmt FROM :stmt;
+EXEC SQL EXECUTE my_stmt USING 42, 'foobar';
+EXEC SQL DEALLOCATE PREPARE my_stmt;
+</pre>
+
+<p>Remember to deallocate the prepared statement after use!</p>
+
+<!-- h2 Execute Prepared Statements --></div>
+
+<h2 cbc>More Information</h2><div>
+
+<dl class="link-list">
+<dt><a href="https://www.postgresql.org/docs/current/plpgsql-statements.html#PLPGSQL-STATEMENTS-EXECUTING-DYN">43.5.4. Executing Dynamic Commands</a></dt>
+
+<dt><a href="https://www.postgresql.org/docs/current/ecpg-dynamic.html">36.5. Dynamic SQL</a> on <a href="https://www.postgresql.org/docs">Postgres.org</a></dt>
+</dl>
+
+<!-- h2 More Informaion --></div>
+
+<!--<figcaption class="listing"></figcaption>
+
+<pre>
+
+</pre>
+-->
+
+</div><script type="module" src="/inc/page.js" ></script></body></html>
