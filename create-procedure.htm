@@ -32,22 +32,40 @@
 -->
 
 <pre>
-class FieldUpdateInfo {
+type FieldUpdateInfoType = {
 	columnName::string ,
 	originalValue::any ,
 	proposedValue::any ,
 	currentValue::any
 	}
 
-function genericRowUpdate ( tableName, rowID, updateInfo::[FieldUpdateInfo] ) { 
+function genericRowUpdate ( tableName, rowID, updateInfo: FieldUpdateInfoType[ ] ) { 
+	///		Updates a target with optimistic concurrency control
+	///		WHERE ID = ( col.current IS NOT DISTINCT FROM col.original OR col.current IS NOT DISTINCT FROM col.proposed )
 	tableName = escapeTableName( tableName );
-	let fieldNames = findUpdateColumns( updateInfo );
-	let s = "UPDATE " + escapeTableName( tableName ); 
+	updateInfo = escapeColumnNames( updateInfo );
+	let arguments = [ ] ;
+	arguments.push( "UPDATE " + escapeTableName( tableName ) + " SET " );
+	// Compile the column updates
 	for ( let i = 0 ; i < updateInfo.length ; i ++ ) {
-		if ( typeof updateInfo[ i ].proposedValue !== "undefined" ) s += " " + updateInfo[ i ].columnName + " = " 
+		if ( typeof updateInfo[ i ].proposedValue !== "undefined" ) arguments[ 0 ] +=  ( i === 0 ? " " : "," ) + updateInfo[ i ].columnName + " =?" ;
+		arguments.push( updateInfo[ i ].proposedValue );
 		}
-	let result = db.executeQuery( `Update {tableName} ` );
-	
+	// Compile the where clause row ID filter
+	arguments[ 0 ] += " WHERE ID=? " ;
+	arguments.push( rowID );
+	// Compile the optimistic concurrency control columns
+	for ( let i = 0 ; i < updateInfo.length ; i ++ ) {
+		if ( typeof updateInfo[ i ].originalValue !== "undefined" ) {
+			arguments[ 0 ] += " AND ( old." + updateInfo[ i ].columnName + " IS NOT DISTINCT FROM ?" ;
+			arguments.push(  updateInfo[ i ].originalValue );
+			if ( typeof updateInfo.proposedValue !== "undefined" ) { 
+				arguments[ 0 ] +=  " OR old." + updateInfo[ i ].columnName  + " IS NOT DISTINCT FROM ?" ;
+			arguments.push(  updateInfo[ i ].proposedValue );
+				}	}
+		s + ");" ;   // closes the parenthesis opened by AND
+		}
+	let result = db.executeQuery.call( arguments );	
 	}
 </pre>
 

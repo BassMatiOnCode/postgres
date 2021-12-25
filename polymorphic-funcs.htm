@@ -1,0 +1,87 @@
+﻿<!DOCTYPE html>
+<html lang="en-US"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="template-info" file-name="empty.htm"version="2021-08-23" editor-name="usp" />
+<meta name="author" content="usp" />
+<meta name="creation-date" content="2021-12-16" />
+<meta name="editor" content="usp" />
+<meta name="change-date" content="2021-12-23" />
+<meta name="version" content="1" />
+<meta name="categories" content="Programming > Databases > Postgres" />
+<meta name="tags" content="programming, database, postgres, function, polymorphic, parameter" />
+<meta name="description" content="The <tt>any*</tt> pseudo-types are used to implement polymorphic functions and procedures. But there are some (serious) limitations." />
+<link rel="stylesheet" href="/inc/page.css" />
+<style>
+#table-01 thead td { font-style : italic ; padding-right : 10px }
+</style>
+ <title>Postgres - Polymorhic Functions</title>
+
+</head><body><div id="page-header"></div><div id="main-toolbar"></div><div id="content">
+
+<h1>Polymorhic Functions</h1>
+
+<p id="page-abstract"></p>
+
+<h2 cbc>User-Defined Procedures and Functions</h2><div>
+
+<p>Procedures are defined with the <tt>CREATE PROCEDURE</tt> command, functions with <tt>CREATE FUNCTION</tt>. Functions can return a value, procedures don't. There are IN, OUT, and INOUT parameters. Functions are called as part of a DML command, a procedure is called in isolation with the CALL command. A procedure can </p>
+
+<table id="table-01" class="no-borders"><thead><tr>
+	<td>Capability</td>
+	<td>Procedure</td>
+	<td>Function</td>
+	<td></td>
+</tr></thead><tbody>
+<tr><td colspan="4">IN, OUT and INOUT parameters</td></tr>
+<tr><td></td><td>yes</td><td>yes</td><td></td>
+<tr><td colspan="4">Return a value</td></tr>
+<tr><td></td><td>no</td><td>yes</td><td></td>
+</tr><tr><td colspan="4">Called as part of a DML command</td></tr>
+<tr><td></td><td>no</td><td>yes</td></tr>
+<tr><td colspan="4">Called in isolation with the CALL command</td></tr>
+<tr><td></td><td>yes</td><td>no</td></tr>
+<tr><td colspan="4">Can auto-commit or roll back transaction</td></tr>
+<tr><td></td><td>yes</td><td>no</td></tr>
+</tbody></table>
+
+<p>Note that the keyword <tt>ROUTINE</tt> stands for both, procedures and functions.</p>
+
+<!-- h2 User-Defined Procedures --></div>
+
+<h2 cbc>Polymorphic Functions</h2><div>
+
+<p>Consider a function "add" that adds two values and returns the result:</p>
+
+<figcaption class="listing"></figcaption>
+<pre>add ( anyelement, anyelement ) returns anyelement</pre>
+
+<p>When called, the type of all three <tt>anyelement</tt> values must be the same. For instance, the following function call works with all integers:</p>
+
+<figcaption class="listing"></figcaption>
+<pre>
+result : integer ;
+result = add ( 2, 3 ) ;
+</pre>
+
+<p>But this call won't:</p>
+<figcaption class="listing"></figcaption>
+<pre>
+result : float ;
+result = add ( 2, 3.5 ) ;
+</pre>
+
+<p>The first parameter is an integer, the second a floating point number. That won't work.</p>
+
+<p>More information: <a href="https://www.postgresql.org/docs/current/extend-type-system.html">Postgresql.org - The PostgreSQL Type System</a>.</p>
+
+<!-- h2 Polymorphic Functions --></div>
+
+<!--
+<figcaption class="listing"></figcaption>
+<pre>
+
+</pre>
+-->
+
+</div><script type="module" src="/inc/page.js" ></script></body></html>

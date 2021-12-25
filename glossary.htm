@@ -6,14 +6,16 @@
 <meta name="author" content="usp" />
 <meta name="creation-date" content="2021-12-16" />
 <meta name="editor" content="usp" />
-<meta name="change-date" content="2021-12-20" />
+<meta name="change-date" content="2021-12-22" />
 <meta name="version" content="1" />
 <meta name="categories" content="Programming > Databases > Postgres" />
 <meta name="tags" content="programming, database, postgres, glossary" />
 <meta name="description" content="This page explains Postgres terms and keywords." />
 
 <link rel="stylesheet" href="/inc/page.css" />
- 
+ <style>
+ dl dl { margin: 0 }
+ </style>
 <title>Postgres - Glossary</title>
 
 </head><body><div id="page-header"></div><div id="main-toolbar"></div><div id="content">
@@ -22,9 +24,21 @@
 
 <p id="page-abstract"></p>
 
-<dl>
+<dl class="description-list">
 <dt cbc>CALL</dt><dd>Invokes a procedure with optional parameters and result values. <a href="https://www.postgresql.org/docs/current/sql-call.html">postgresql.org</a>.</dd>
+<dt cbc>IS [ NOT ] DISTINCT FROM</dt><dd>A equality comparison operator. Handles operands with NULL values correctly.</dd>
 <dt cbc>FOUND</dt><dd>A special variable that indicates whether a query has found rows, or not.</dd>
+
+<dt cbc>Internal Types</dt>
+<dd><a href="https://www.postgresql.org/docs/current/datatype.html">Postgresql.org Data Types</a></dd>
+
+<dt cbc>Keyword Listings</dt>
+<dd><ul class="no-bullets">
+<li><a href="https://www.postgresql.org/docs/current/sql-keywords-appendix.html">Postgresql.org Keyword Listing</a></li>
+<li><a href="https://www.postgresql.org/docs/current/sql-commands.html">SQL Reference</a></li>
+</ul></dd>
+
+<dt cbc>Pseudo Types</dt><dd>(any&hellip;) cannot be used for column names and component of composite types. They are used to declare the arguments and return types of polymorphic functions and procedures. <a href="https://www.postgresql.org/docs/current/datatype-pseudo.html#DATATYPE-PSEUDOTYPES-TABLE">List of pseudo types</a>.</dd>
 <dt cbc>USING</dt><dd>An SQL Keyword that precedes argument values for parameterized statements.</dd>
 </dl>
 
