@@ -1,0 +1,282 @@
+﻿<!DOCTYPE html>
+<html lang="en-US"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="template-info" file-name="empty.htm" version="2022-02-09" editor="USP" />
+<meta name="author" content="USP" />
+<meta name="creation-date" content="2022-02-25" />
+<meta name="editor" content="USP" />
+<meta name="change-date" content="2022-02-25" />
+<meta name="version" content="1" />
+<meta name="categories" content="Programming > Database > Postgres" />
+<meta name="tags" content="programming, database, postgres, concurrent update conflict, optimistic locking." />
+<meta name="description" content="With optimistic locking strategies (i. e. there is no record locking between read and update), concurrent update conflicts may occur. The countermeasures, shown on this page, address this problem by detecting and preventing overwriting changed data." />
+
+<link rel="stylesheet" href="/inc/page.css" />
+ 
+<title>Postgres - Concurrent Update Conflict Detection</title>
+
+</head><body><header id="page-header"></header><div id="main-toolbar"></div><main id="page-content">
+
+<h1>Concurrent Update Conflict Detection</h1>
+
+<p id="page-abstract"></p>
+
+
+<h2 cbc>Problem Analysis</h2><div>
+
+<p>Consider two persons, Alice and Bob, interactively updating the same record in the same database at nearly the same time. Consider both reading the same record version. Both consider that a certain field needs an update. Let's consider it the salary field. Updating the salary is always a good idea, as long as the figures are changed in the right direction. Alice is focused and updates the salary with her figures. Bob is more distracted and updates the salary according to his own ideas a little later. That is not necessarily a problem per se, but a problem is that Alice's input is lost <em>without notice</em>.</p>
+
+<p>There are several ways to deal with such a concurrent update conflict situation. One is pessimistic record locking: Alice locks the record and prevents reading until after the update, and thereby prevents Bob from reading the record. This can lead to performance problems. Another strategy is called "optimistic record locking", which is a little bit misleading, because there is no record locking involved at all. The strategy is called "concurrent update conflict detection", which does not prevent Bob from reading the record, but prevents him to update the which was changed in the meantime.</p>
+
+<p>There are several ways to implement such a detection algorithm. One uses complex conditions in a where clauses to ensure that fields in the database still have their original values at the time of update. This can be really cumbersome and error-prone, but it is quite a flexible and powerful approach. Another approach uses update counters and a simple test that ensures that the record has not been updated since it has been read, so the update is performed on the original values. The MS SQL Server's Timestamp datatype does exactly that: Every record update increments this counter. Other databases, including Postgres, have to mimic this behavior with update triggers and functions.</p>
+
+<p>An update trigger is a piece of code that is executed whenever a row in a table is updated. The trigger specifies a function to be executed, and the function can test the counter and prevent update, or increment the counter and allow the update.</p>
+
+<p>This counter column, <tt>rg</tt>, short for "record generation" counter, must be present in all database tables that are updated interactively.</p>
+
+<!-- h2 --></div>
+
+<h2 cbc>Scenario Analysis</h2><div>
+
+<p>Before we can write code, it is necessary to evaluate possible update scenarios. We consider having three users, Alice, Bob and Charlie, where Alice produced the initial state of the record, which Bob reads and later updates in scenarioes A to D. In scenarios E to H, Charlie also reads that same record, then Charlie updates, then Bob updates. This essentially is a concurrent update conflict, with a possible loss of data if not detected and properly handled.</p>
+
+<dl>
+<dt>Scenario A</dt>
+<dd>Bob reads the record with an <tt>rg</tt> value of 1, and later supplies the same <tt>rg</tt> value when the record is updated. This is consideren an error, because Bob is expected to supply <em>an incremented value</em> of <tt>rg</tt> in the update statement.</dd>
+
+<dt>Scenario B</dt>
+<dd>Bob writes the the incremented <tt>rg</tt> value, 2, which is correct.</dd>
+
+<dt>Scenario C</dt>
+<dd>Bob writes the incorrect value <tt>rg + 2</tt> (or an even larger value), which is considered an error.</dd>
+
+<dt>Scenario D</dt>
+<dd>Bob supplies NULL for <tt>rg</tt> to indicate that a potential update conflict should be ignored.</dd>
+
+<dt>Scenario E</dt>
+<dd>Bob does not suppy any value for <tt>rg</tt>, the column is simply not included in the update statement. This is considered an error.</dd>
+
+<dt>Szenarioes F to J</dt>
+<dd>Same as scenarioes A to D, but with Charlie updates the record before Bob. This is considered a concurrent update conflict situation.</dd>
+</dl>
+
+<p>The following table details the scenarioes over the columns. Numeric values in the cells represent the value of the <tt>rg</tt> field at that time.</p>
+
+<style>
+#t-00 th { font-weight : normal ; text-align : center ; }
+#t-00 th:first-child { text-align : left ; }
+#t-00 td { text-align : center ; }
+#t-00 td.alert { background-color : #ffbf80 }
+</style>
+
+<table id="t-00" class="flat-borders"><thead><tr>
+	<th>Scenario</th>
+	<th>A</th>
+	<th>B</th>
+	<th>C</th>
+	<th>D</th>
+	<th>E</th>
+	<th>F</th>
+	<th>G</th>
+	<th>H</th>
+	<th>I</th>
+	<th>J</th>
+</tr></thead><tbody><tr>
+	<th>Bob reads</th>
+	<td>1</td>
+	<td>1</td>
+	<td>1</td>
+	<td>1</td>
+	<td>1</td>
+	<td>1</td>
+	<td>1</td>
+	<td>1</td>
+	<td>1</td>
+	<td>1</td>
+</tr><tr>
+	<th>Charlie reads</th>
+	<td></td>
+	<td></td>
+	<td></td>
+	<td></td>
+	<td></td>
+	<td>1</td>
+	<td>1</td>
+	<td>1</td>
+	<td>1</td>
+	<td>1</td>
+</tr><tr>
+	<th>Charlie writes</th>
+	<td></td>
+	<td></td>
+	<td></td>
+	<td></td>
+	<td></td>
+	<td>2</td>
+	<td>2</td>
+	<td>2</td>
+	<td>2</td>
+	<td>2</td>
+</tr><tr>
+	<th>Bob writes</th>
+	<td>1</td>
+	<td>2</td>
+	<td>3</td>
+	<td>null</td>
+	<td>omitted</td>
+	<td>1</td>
+	<td>2</td>
+	<td>3</td>
+	<td>null</td>
+	<td>omitted</td>
+</tr><tr>
+	<th colspan="11">Results</th>
+</tr><tr>
+	<th>Final RG value</th>
+	<td>1</td>
+	<td>2</td>
+	<td>1</td>
+	<td>2</td>
+	<td>1</td>
+	<td>2</td>
+	<td>2</td>
+	<td>3</td>
+	<td>3</td>
+	<td>2</td>
+</tr><tr>
+	<th>Final content</th>
+	<td>Alice</td>
+	<td>Bob</td>
+	<td>Alice</td>
+	<td>Bob</td>
+	<td>Alice</td>
+	<td>Charlie</td>
+	<td>Charlie</td>
+	<td>Bob</td>
+	<td>Bob</td>
+	<td>Charlie</td>
+</tr><tr>
+	<th>Conflict</th>
+	<td>yes</td>
+	<td>no</td>
+	<td>yes</td>
+	<td>no</td>
+	<td>yes</td>
+	<td>yes</td>
+	<td>yes</td>
+	<td class="alert">no</td>
+	<td>no</td>
+	<td>yes</td>
+</tr><tr>
+	<th>User Error</th>
+	<td>yes</td>
+	<td>no</td>
+	<td>yes</td>
+	<td>no</td>
+	<td>yes</td>
+	<td>yes</td>
+	<td>no</td>
+	<td>yes</td>
+	<td>no</td>
+	<td>yes</td>
+</tr></tbody></table>
+
+<p>To understand the implications, we must consider how a trigger functions deals with old and new record versions.</p>
+
+<table class="flat-borders"><thead><tr>
+	<th></th>
+</tr></thead><tbody><tr>
+	<th>Update statement supplies</th>
+	<td>new value</td>
+</tr><tr>
+	<th>new.col</th>
+	<td>new value</td>
+</tr><tr>
+	<td>old.col</td>
+	<td>old value</td>
+</tr></tbody></table>
+
+<dl>
+<dt>Scenario A</dt>
+<dd>Bob writes the original <tt>rg</tt> value instead of the incremented value, and the new row is different from the old row. The algorithm considers this as an update conflict, the record will not be updated. </dd>
+<dd>If Bob updates the database row with values already present in the database, including the <tt>rg</tt> field, then the update should succeed without errors. In fact, it wouldn't change anything.</dd>
+
+<dt>Scenario B</dt>
+<dd>Bob writes the incremented <tt>rg</tt> value. The algorithm does not consider this an update conflict.</dd>
+
+<dt>Scenario C</dt>
+<dd>Bob writes an <tt>rg</tt> value that is too large. The algorithm considers this as an update conflict and does not update the record.</dd>
+
+<dt>Scenario D</dt>
+<dd>Bob supplies NULL in <tt>rg</tt> to indicate that a forced updated is requested. Because no-one else has updated the record in the meantime, this is not a problem.</dd>
+
+<dt>Scenario E</dt>
+<dd>Bob does not include the <tt>rg</tt> column in the update statement. The algrorithm considers this as an update conflict and refuses to update the record.</dd>
+<dd>If Bob updates the database row with values already present in the database, then the update should succeed without errors. In fact, it wouldn't change anything, because Bob's and Alice's record versions are identical..</dd>
+
+<dt>Scenario F</dt>
+<dd>Same as scenario A, with Charlie updating the record in the meantime. The algorithm considers this as an update conflict and refuses to update the record. Charlies changes will not be overwritten.</dd>
+<dd>If Bob updates the database row with values already present in the database, including the <tt>rg</tt> field, then the update should succeed without errors. In fact, it wouldn't change anything.</dd>
+
+<dt>Scenario G</dt>
+<dd>Bob supplies the correctly incremented <tt>rg</tt> value, but because Charlie's update has incremented <tt>rg</tt> in the database in the meantime, Bob's <tt>rg</tt> value will trigger the update conflict regognition. Charlies changes will not be overwritten.</dd>
+
+<dt>Scenario H</dt>
+<dd>Bob supplies the <em>incorrectly</em> incremented <tt>rg</tt> value. The algorithm will <em>not</em> detect this error and overwrite Charlies changes with Bobs data silently. This is considered an error.</dd>
+
+<dt>Scenario I</dt>
+<dd>Bob supplies null in <rg>rg</rg> in the update statement to request a forced update of the record. Charlies changes will be overwritten with Bobs version. This is <em>not</em> considered an error.</dd>
+
+<dt>Scenario J</dt>
+<dd>Bob accidently forgot to include the <tt>rg</tt> value in the update statement. The algorithm detects an update conflict and refuses to update the record.</dd>
+<dd>If Bob updates the database row with values already present in the database, then the update should succeed without errors. In fact, it wouldn't change anything, because Bob's and Charlie's record versions are identical.</dd>
+</dl>
+
+<p>To recall, we have a systematic problem with scenario H, where Bob supplies an incorrect value for <tt>rg</tt> in the update statement. Unfortunately, it is theoretically impossible for any algorithm to determine the correctly incremented <tt>rg</tt> value for Bob, because there is no way to find out what the original value in Bob's record was at the time of reading.</p>
+
+<p>There are two countermeasures that can be taken:</p>
+
+<p>A &mdash; Use pessimistic record locking. This can lead to serious performance problems.</p>
+<p>B &mdash; Validate <em>all</em> software that updates the table with scenarioes B and C. The update in scenario B must succeed, and fail in scenario C. If this is the case, the software can be considered correctly implemented (with regards to incrementing the <tt>rg</tt> counter). As a result, scenario H is prevented to appear. The use of <em>unvalidated software</em> (including interactive use of the Postgres console) must be prohibited, or better yet, prevented.</p>
+
+<!-- h2 --></div>
+
+<h2 cbc>Concurrent Update Conflict Detection Function</h2><div>
+
+<p>We need a function to be called by an update trigger that checks and increments an update counter in the record, the <tt>rg</tt> field, a shorthand for "record generation".</p>
+
+<p>Here is the suggested implementation:</p>
+
+<figcaption class="listing"></figcaption>
+<pre>CREATE or replace FUNCTION incrementRowGen ( ) returns trigger as $$ BEGIN
+-- Increment row generation counter in a record.
+IF new.rg is null OR old.rg + 1 = new.rg THEN
+    new.rg := old.rg + 1 ;
+    return new ;
+ELSE
+    return null ;
+END IF ; 
+END ; $$ LANGUAGE PLPGSQL ;
+</pre>
+
+<p>This function ensures that the <tt>rg</tt> column can never be assigned directly on behalf of a client. Instead, if a value was supplied by a client, the value is used for detecting a concurrent update conflict.</p>
+
+<p>The code above accesses two row versions, <em>old</em>, which represents the current state in the database, and <em>new</em>, as requested by the caller. If the caller's old record version is the same as the current old version in the database, then <tt>old.rg + 1</tt> should be equal to <tt>new.rg</tt>, so the caller can consider the record unchanged and the update shall succeed. On the contrary, if someone else has updated the record in the meantime and thereby incremented <tt>rg</tt>, <tt>old.rg + 1</tt> should be (at least by one) greater than the new <tt>rg</tt> value as supplied by the caller. This is a concurrent update conflict situation. The trigger function returns NULL to abort the update statement.</p>
+
+<p>If the caller supplies NULL in the <tt>rg</tt> column, a concurrent update conflict will be ignored, and the record is updates with the values supplied by the caller.</p>
+
+<p>Insert the code above into <tt>work.sql</tt> and execute it:</p>
+
+<figcaption class="listing">Creating the function</figcaption>
+<pre><cc>trade=#</cc> \i work.sql<cc>
+CREATE FUNCTION
+trade=#</cc></pre>
+
+<p>If that succeeded, move the code in <tt>work.sql</tt> and append it to the database creation script, <tt>create-trade-db-1.sql</tt>.</p>
+
+<p>The code can be applied to every table that has an <tt>rg</tt> column. Later, when we create tables, we will write the update trigger code that calls this function.</p>
+
+<!-- h2 --></div>
+
+</main><footer id="page-footer"></footer><script type="module" src="/inc/page.js" ></script></body></html>
