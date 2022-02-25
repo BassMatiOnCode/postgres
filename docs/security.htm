@@ -1,0 +1,170 @@
+﻿<!DOCTYPE html>
+<html lang="en-US"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="template-info" file-name="empty.htm" version="2022-02-09" editor="USP" />
+<meta name="author" content="USP" />
+<meta name="creation-date" content="2022-02-24" />
+<meta name="editor" content="USP" />
+<meta name="change-date" content="2022-02-24" />
+<meta name="version" content="1" />
+<meta name="categories" content="Programming > Database > Postgres" />
+<meta name="tags" content="programming, database, Postgres, user, role, security, access, permission." />
+<meta name="description" content="In this section we will deal with access management, roles, users, and permissions. The goal is to make the database secure against attacks." />
+
+<link rel="stylesheet" href="/inc/page.css" />
+ 
+<title>Postgres - Access Control</title>
+
+</head><body><header id="page-header"></header><div id="main-toolbar"></div><main id="page-content">
+
+<h1>Access Control</h1>
+
+<p id="page-abstract"></p>
+
+<h2 cbc>Roles</h2><div>
+
+<figcaption class="listing"></figcaption>
+<pre>CREATE ROLE SalesManager NOLOGIN ;</pre>
+
+<p>To prevent users from logging in as a role, add the <tt>nologin</tt> argument.</p>
+
+<!-- h2 --></div>
+
+<h2 cbc>Users</h2><div>
+
+<p>USER in Postgres is actually an alias for ROLE, but USER makes sense because users can log-in, roles cannot (or should not). Roles should only used as permission providers to users.</p>
+
+<figcaption class="listing"></figcaption>
+<pre>CREATE USER JohnSmith LOGIN PASSWORD 'JohnSmith' ;
+GRANT SalesManager TO JohnSmith ;</pre>
+
+<!-- h2 --></div>
+
+<h2 cbc>Visibility and Namespaces</h2><div>
+
+<p>In Postgres, a <tt>schema</tt> object essentially is a <em>namespace</em>. A schema contains database object, such as tables, view, functions. Roles can be granted create and/or usage permissions on schemas. If a role has no use permission on a schema, that role cannot see (and use) the object inside.</p>
+
+<figcaption class="listing">Show schemas and their permissions</figcaption>
+<pre><cc>trade=#</cc> \dn+<cc>
+                          List of schemas
+  Name  |  Owner   |  Access privileges   |      Description      
+--------+----------+----------------------+------------------------
+ public | postgres | postgres=UC/postgres+| standard public schema
+        |          | =UC/postgres         |
+(1 row)
+trade=#</cc></pre>
+
+<ul>
+<li>User <tt>postgres</tt> has the permissions USE and CREATE on the PUBLIC schema, granted by the user postgres</li>
+<li>User <tt>public</tt> has the permissions USE and CREATE on the PUBLIC schema, granted by the user postgres.</li>
+</ul>
+
+<p>Revoke the permission to connect for the general public:</p>
+
+<figcaption class="listing">Show modified permissions</figcaption>
+<pre><cc>trade=#</cc> REVOKE CREATE on schema public from public ;<cc>
+REVOKE
+trade=#</cc> \dn+<cc>
+                          List of schemas
+  Name  |  Owner   |  Access privileges   |      Description      
+--------+----------+----------------------+------------------------
+ public | postgres | postgres=UC/postgres+| standard public schema
+        |          | =U/postgres         |
+(1 row)
+trade=#</cc></pre>
+
+<p>Now, ordinary user cannot create objects in the <tt>public</tt> schema.</p>
+<p>Better yet is to also revoke the use of the public schema:</p>
+
+<figcaption class="listing">Revode all and show modified permissions</figcaption>
+<pre><cc>trade=#</cc> REVOKE all on schema public from public ;<cc>
+REVOKE
+trade=#</cc> \dn+<cc>
+                          List of schemas
+  Name  |  Owner   |  Access privileges   |      Description      
+--------+----------+----------------------+------------------------
+ public | postgres | postgres=UC/postgres+| standard public schema
+(1 row)
+trade=#</cc></pre>
+
+<!-- h2 --></div>
+
+<h2 cbc>Permissions</h2><div>
+
+<p>Permissions on database objects can be granted to roles.</p>
+
+<figcaption class="listing"></figcaption>
+<pre>GRANT insert, select, update ON customer TO sales ;
+REVOKE delete ON customer TO sales ;
+</pre>
+
+<figcaption class="listing"></figcaption>
+<pre> </pre>
+
+
+
+<figcaption class="listing"></figcaption>
+<pre>ALTER DEFAULT PRIVILEGES
+    GRANT insert, select, update on tables TO sales ;
+</pre>
+
+<!-- h2 --></div>
+
+<h2 cbc>Security Advice List</h2><div>
+
+<ol class="instructions" style="padding-left : 0">
+<li>Restrict binding to network devices in <tt>postgresql.conf</tt>
+	<pre>listen_addresses = 'localhost, &lt;ip-of-network-device&gt;'</pre></li>
+
+<li>Never use <tt>trust</tt> in <tt>pg_hba.conf</tt>. This would users to connect without password. Use scram-sha-256 and SSL instead.</li>
+
+<li>Restrict access from networks and/or hosts that really require access in <tt>pg_hba.conf</tt>. Especially, avoid netmask 0.0.0.0/0 if possible.</li>
+
+<li>Restrict access for specific users to specific databases in <tt>pg_hba.conf</tt>.</li>
+
+<li>Add documentation to every line in <tt>pg_hba.conf</tt>, including why, who requested, and whom to contact in case of need.</li>
+
+<li>Drop MD5, move to scram-sha-256.</li>
+
+<li>Revoke permissions for the general public:
+	<pre>\c db-name
+	REVOKE ALL on database db-name from public ;
+	REVOKE ALL on schema public from public ;</pre>
+	</li>
+
+<li>Never use ALTER USER SET PASSWORD. The command, including the password, will appear in the log files in clear text. Use the PSQL \password command or pgAdmin  instead.</li>
+
+<li>Alter default privileges for roles in schemas <em>before</em> creating objects.</li>
+
+<li>Use SSL.</li>
+
+<li>Make sure that functions running with changed/elevated privileges (SECURITY DEFINER) are written properly.</li>
+
+<li>Prevent SQL injection: Use dynamic SQL only when necessary. Use charater type parameters only when necessary. Always use format() to construct SQL query strings.</li>
+
+<li>Superuser is dangerous. Avoid superusers wherever possible.</li>
+
+<li>Update.</li>
+</ol>
+
+
+
+<ol class="instructions continue">
+</ol>
+
+
+<!-- h2 --></div>
+
+<h2 cbc>References</h2><div>
+
+<dl>
+<dt><a href="https://www.enterprisedb.com/blog/how-to-secure-postgresql-security-hardening-best-practices-checklist-tips-encryption-authentication-vulnerabilities">How to Secure PostgreSQL: Security Hardening Best Practices & Tips</a> - EDB</dt>
+
+<dt><a href="https://www.cybertec-postgresql.com/en/postgresql-security-things-to-avoid-in-real-life/">POSTGRESQL SECURITY: THINGS TO AVOID IN REAL LIFE</a> - Cybertec</dt>
+</dl>
+
+<!-- h2 --></div>
+
+
+</main><footer id="page-footer"></footer><script type="module" src="/inc/page.js" ></script></body></html>
