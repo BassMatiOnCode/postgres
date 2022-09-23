@@ -1,0 +1,148 @@
+﻿<!DOCTYPE html>
+<html lang="en-US"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="template-info" file-name="empty.htm" version="2022-02-09" editor="USP" />
+<meta name="author" content="USP" />
+<meta name="creation-date" content="2022-02-17" />
+<meta name="editor" content="USP" />
+<meta name="change-date" content="2022-02-17" />
+<meta name="version" content="1" />
+<meta name="categories" content="Programming > Database > Postgres" />
+<meta name="tags" content="programming, database, postgresql, postgres, how-to" />
+<meta name="description" content="This page gathers standard recipes for working with Postgres." />
+
+<link rel="stylesheet" href="/inc/page.css" />
+ 
+<title>PostgreSQL - How To...</title>
+
+</head><body><header id="page-header"></header><div id="main-toolbar"></div><main id="page-content">
+
+<h1>How To&hellip;</h1>
+
+<p id="page-abstract"></p>
+
+<h2 cbc id="allow-start-stop">Allow Users to Start and Stop Postgres Service</h2><div>
+
+<p>Use sc.exe to check the current permissions:</p>
+<pre class="box">sc sdshow postgresql-x64-14
+D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)
+</pre>
+
+<p>Use sc.exe to compare with another service, such as spooler or secondary logon service:</p>
+
+<pre>sc sdshow seclogon
+D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWRPDTLOCRRC;;;IU)(A;;CCLCSWDTLOCRRC;;;SU)(A;;CCLCSWRPDTLOCRRC;;;AU)
+</pre>
+
+<p>As we can see, an interactive user (IU) lacks some of the permissions:</p>
+
+<pre>
+(A;;CCLCSWRPDTLOCRRC;;;IU)
+(A;;CCLCSW<hi>RPDT</hi>LOCRRC;;;IU)
+</pre>
+
+<p>So we must correct that with the following command:</p>
+
+<pre>
+$ sc sdset postgresql-x64-14 "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWRPDTLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)"
+[SC] SetServiceObjectSecurity SUCCESS
+$
+</pre>
+
+<p>More information: <a href="http://woshub.com/set-permissions-on-windows-service/">woshub.com</a></p>
+
+<!-- h2 --></div>
+
+<h2 cbc>Copy a Table Structure</h2><div>
+
+<p>To copy the structure of an existing table without duplicating the DDL code, use the following statement:</p>
+
+<pre>CREATE TABLE target-table AS TABLE source-table WITH NO DATA ;</pre>
+
+<p>If you omit the with-clause, source table data is also copied to the target table.</p>
+
+<!-- h2 --></div>
+
+<h2 cbc>Copy Data Between Tables</h2><div>
+
+<p>The basic syntax is</p>
+
+<pre>INSERT INTO target-table SELECT list-of-column-names FROM source-table ;</pre>
+
+<p>Target table columns are identified by the same-named source table columns. If they are different, use a column-name alias that matches the target column.</p>
+<p>You can add filter clauses to the select statement as usual.</p>
+
+<!-- h2 --></div>
+
+<h2 cbc>Creating a Temporary Table</h2><div>
+
+<p>To create a temporary table, use the following statment:</p>
+
+<pre>CREATE TEMPORARY TABLE ( table-definition-list ) ;</pre>
+
+<p>Essentially, this is a normal create table statement with the added "temporary" attribute. Note temporary tables are constrained in some way or another. For example, you cannot use foreign key constraints that reference a regular, non-temporary table.</p>
+
+<!-- h2 --></div>
+
+<h2 cbc>Detect Column Updates</h2><div>
+
+<p>To detect whether an update statement supplied a value for a column, create a trigger on column update:</p>
+
+<pre>CREATE TRIGGER incrementRecordGenerationStep2
+BEFORE UPDATE OF rg ON targetTable
+for each row execute function incremtRecGenStep2( ) ;
+</pre>
+
+<!-- h2 --></div>
+
+<h2 cbc>Move Table to Schema</h2><div>
+
+<p>To move or assign a table to a schema, use</p>
+
+<pre>ALTER TABLE table-name SET SCHEMA schema-name ;</pre>
+
+<!-- h2 --></div>
+
+<h2 cbc>Start the Postgres Server</h2><div>
+
+<p>There is a program to start and stop the Postgres server: <tt>pg_ctl</tt>:</p>
+
+<pre>pg_ctl start -D d:\progs\pg\data</pre>
+
+<p>The data directory must be specified as shown. Altenatively, the <tt>PGDATA</tt> enviroment variable can be set to the data directory.</p>
+
+<!-- h2 --></div>
+
+<h2 cbc>Start the Postgres Server as Service</h2><div>
+
+<p>From the command line:</p>
+
+<pre>net start postgresql-x64-14</pre>
+
+<p>The Postgres service must be configured to allow interactively logged-on users to start and stop the service. More information <a href="#allow-start-stop">here</a>.</p>
+
+<!-- h2 --></div>
+
+<h2 cbc>Update Counter with Trigger Functions</h2><div>
+
+<pre>CREATE FUNCTION updatecounter()
+	returns trigger
+	language plpgsql AS
+	$func$
+	begin
+	new.id := nextval( pg_get_serial_sequence( 'table-name', 'uc' ));
+	return new;
+	end
+	$func$;
+
+CREATE TRIGGER incrementupdatecounter
+	before update on table-name
+	for each row
+	when( new.column-name <> old.column-name )
+	execute function updateCounter( );
+</pre>
+
+<!-- h2 --></div>
+
+</main><footer id="page-footer"></footer><script type="module" src="/inc/page.js" ></script></body></html>

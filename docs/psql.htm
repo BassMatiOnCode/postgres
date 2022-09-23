@@ -1,0 +1,187 @@
+﻿<!DOCTYPE html>
+<html lang="en-US"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="template-info" file-name="empty.htm" version="2022-02-09" editor="USP" />
+<meta name="author" content="USP" />
+<meta name="creation-date" content="2022-02-10" />
+<meta name="editor" content="USP" />
+<meta name="change-date" content="2022-02-15" />
+<meta name="version" content="1" />
+<meta name="categories" content="Programming > Database > Postgres" />
+<meta name="tags" content="programming, database, postgres, psql, sql" />
+<meta name="description" content="<tt>PSQL</tt> is the PostgreSQL interactive terminal. It can be used to connect to a database and execute commands, either interactively, from a file, or specified on the command line, or in a pipe from the standard input channel." />
+
+<link rel="stylesheet" href="/inc/page.css" />
+<link rel="stylesheet" href="/local.css" />
+
+ 
+<title>Postgres - PSQL Interactive Terminal</title>
+
+</head><body><header id="page-header"></header><div id="main-toolbar"></div><main id="page-content">
+
+<h1>PSQL</h1>
+
+<p id="page-abstract"></p>
+
+<p><tt>PSQL</tt> is used for database scripting and interactive data retrieval. An application database is most often if not always created with scripts, they can be chained, they can be version-controlled. Interactive mode is typically used for script development and data retrieval.</p>
+
+<p>PSQL variables can be used to store values with the <tt>\set</tt> and <tt>\gset</tt> commands. Their value can be retrieved with a colon, followed by the variable name.</p>
+
+<p>For detailed information, refer to the <a href="https://www.postgresql.org/docs/current/app-psql.html" target="_blank">manual</a>.</p>
+
+<h2 cbc>Connecting to a Database</h2><div>
+
+<p>One of the most important steps with <tt>psql</tt> is connecting to a database:</p>
+
+<figcaption class="listing">Connecting to a database</figcaption>
+<pre>psql -d database-name -U username -h localhost -p 5432</pre>
+
+<p>Host name and port options can be omitted if the server is listening on the default port on the local machine as shown above. If the user name is omitted, the OS user name is assumed. If the database name is omitted, the OS user name is also used for the database name.</p>
+
+<p>Note that postgres user names should always provided in lowercase letters, otherwise you might experience "authentication errors".</p>
+
+<p>There are several additional options to provide <tt>psql</tt> with options: Command line parameters, options, interactively, environment variables and the global and private <tt>pgpass.conf</tt> files. The default user name is your OS account name. It is also used as default database name. Note that databases may have access restrictions. The database administrator will know the details and can grant you access rights.</p>
+
+<h3 cbc>Connecting with pgpass.conf</h3><div>
+
+<p>The database connection information can be read from a <tt>.pgpass</tt> file in the Windows user's appdata folder. Open notepad running under the OS postgres account:</p>
+
+<figcaption class="listing">Starting notepad.exe</figcaption>
+<pre>
+$ runas /user:os-postgres-account notepad</pre>
+
+<p>Enter the password when asked to. Then enter the following:</p>
+
+<figcaption class="listing">Creating the .pgpass file</figcaption>
+<pre>
+hostname:portnumber:database:username:password
+</pre>
+
+<p>Save the file to <tt>%appdata%\postgresql\pgpass.conf</tt>.</p>
+
+<!-- h2 --></div>
+
+<h3 cbc>Connecting with Environment Variables</h3><div>
+
+<p>Alternatively, you can set environment variables to connect to a database:</p>
+<dl>
+<dt>PGDATA</dt>
+<dd>The folder for the database files</dd>
+<dt>PGHOST</dt>
+<dd>The computer running an instance of postgres.</dd>
+<dt>PGPORT</dt>
+<dd>The port on which the postgres instance is listening.</dd>
+<dt>PGDATABASE</dt>
+<dd>The database name to connect to.</dd>
+<dt>PGUSER</dt>
+<dd>The name of the user connecting to the database.</dd>
+<dt>PGPASSWORD</dt>
+<dd>The user's password.</dd>
+</dl>
+
+<!-- h2 --></div>
+
+<!-- h2 --></div>
+
+<h2 cbc>PSQL Configuration File</h2><div>
+
+<p>The location of the psql configuration file can be retrieved with the command <tt>pg_config --sysconfdir</tt>. The result on my Windows box is <tt>d:\progs\pg\14\etc</tt>. But there is no such folder. I guess this is the folder for system-wide configuration. There is also a configuration in the user's home directory. On a Windows machine, the path is <tt>%APPDATA%\postgresql\psqlrc.conf</tt>. If that file doesn't exist, just create it. Use backslash commands </p>
+
+<!-- h2 --></div>
+
+<h2 cbc>Command Line Options</h2><div>
+
+<p>The syntax for calling psql is</p>
+<pre>psql [option...] [database-name [user-name ]]</pre>
+
+<dl>
+<dt>-?</dt>
+<dt>--help</dt>
+<dt>--help=(commands|options|options|variables)</dt>
+<dd>Shows help bout psql.</dd>
+
+<dt>-c command-text</dt>
+<dt>--command=command-text</dt>
+<dd>Executes the command text and terminates. The command text should be quoted. The command text can contain one or more SQL commands or a single psql meta (backslash) command, but not both at the same time. The -c option can be given multiple times and mixed with the -f option to execute multiple commands.</dd>
+<dd>If multiple SQL commands are given in a single -c argument, he result of the last SQL command is printed to the standard output. This can be confusing.</dd>
+
+<dt>-d database-name</dt>
+<dt>--dbname=database-name</dt>
+<dd>Connects to the specified database. The OS user name is also the default database name.</dd>
+
+<dt>-f file-name</dt>
+<dt>--file=file-name</dt>
+<dd>Executes commands from a file rather than standard input. The option can be repeated and/or mixed with -c commands. Terminates after processing.</dd>
+
+<dt>-h host-name</dt>
+<dt>--host=host-name</dt>
+<dd>Specifies the host that runs a Postgres server.</dd>
+
+<dt>-H</dt>
+<dt>--html</dt>
+<dd>Switches to HTML output mode. Equivalent to <tt>\pset format htm</tt>.</dd>
+
+<dt>-l</dt>
+<dt>--list</dt>
+<dd>List all databases. Equivalent to the command <tt>\l</tt>.</dd>
+
+<dt>-o file-name</dt>
+<dt>--output=file-name</dt>
+<dd>Query output goes to the specified file.</dd>
+
+<dt>-U user-name</dt>
+<dt>--username=user-name</dt>
+<dd>User name for database connection. The default user name is the logged-in operating system user name. The OS user name is also the default database name.</dd>
+
+<dt>-W password</dt>
+<dt>--password</dt>
+<dd>Enable password input before an attempt to connect to the server is made. If it is known ahead that a password is required, this options saves a roundtrip to the server without password. Alternatively, a password can be stored in a <tt>.pgpass</tt> file or in the <tt>PGPASSWORD</tt> environment variable.</dd>
+</dl>
+
+<!-- h2 --></div>
+
+<h2 cbc>Using PSQL Interactively</h2><div>
+
+<p></p>
+
+<!-- h2 --></div>
+
+<h2 cbc>PSQL Scripting</h2><div>
+
+<p>Scripts are typically used for complex and/or repeatable operations.</p>
+<p>A line comment starts with two dashes <tt>--</tt> at the beginning of the line.</p>
+<p>Scripts can contain meta-commands (beginning with a backslash) and SQL instructions.</p>
+
+
+<!-- h2 --></div>
+
+<h2 cbc>Cheat Sheet</h2><div>
+
+<p>The following table lists frequently used slash-commands.</p>
+
+<table class="flat-borders"><thead><tr>
+	<th>CMD</th>
+	<th>Description</th>
+</tr></thead><tbody><tr>
+	<th>\ddp</th>
+	<td>List default privileges</td>
+</tr><tr>
+	<th>\df</th>
+	<td>List functions</td>
+</tr><tr>
+	<th>\dt</th>
+	<td>List tables</td>
+</tr><tr>
+	<th>\dt table-name</th>
+	<td>List table structure</td>
+</tr></tbody></table>
+
+<h3 cbc>List Foreign Keys</h3><div>
+
+
+
+<!-- h3 --></div>
+<!-- h2 --></div>
+
+</main><footer id="page-footer"></footer><script type="module" src="/inc/page.js" ></script></body></html>

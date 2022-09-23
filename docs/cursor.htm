@@ -1,0 +1,143 @@
+﻿<!DOCTYPE html>
+<html lang="en-US"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="template-info" file-name="empty.htm" version="2022-02-09" editor="USP" />
+<meta name="author" content="USP" />
+<meta name="creation-date" content="2022-03-14" />
+<meta name="editor" content="USP" />
+<meta name="change-date" content="2022-03-14" />
+<meta name="version" content="1" />
+<meta name="categories" content="" />
+<meta name="tags" content="" />
+
+<link rel="stylesheet" href="/inc/page.css" />
+ 
+<title>Postgres - Working With Cursors</title>
+<meta name="description" content="The paging technique, introduced earlier with the <em>select</em> command, can be used to retrieve a result set in portions, but it can be tricky to get results that are consistent with the database. A <em>cursor</em> can do pretty much the same, but holds the entire result set in an isolated temporary storage, and provides very flexible data retrieval functions." />
+
+</head><body><header id="page-header"></header><div id="main-toolbar"></div><main id="page-content" cbc-default="collapsed">
+
+<h1>Working With Cursors</h1>
+
+<p id="page-abstract"></p>
+
+<p>The lifetime of a cursor is limited to the enclosing transaction, but can be extended to the end of the session with the HOLD option, or closed with the <tt>CLOSE cursor-name</tt> command. Data can be retrieved with the <tt>FETCH</tt> command. A cursor has an associated <em>position</em>. The position of the current record can be set explicitly with the <tt>MOVE</tt> command, or implicitly with the <tt>FETCH</tt>.</p>
+
+<p>While the SQL standard specifies cursors in embedded SQL only, Postgres allows to use cursors interactively in PSQL. This opens up a nice opportunity to fiddle around and become familiar with cursors.</p>
+
+<h2 cbc>Creating a Cursor</h2><div>
+
+<figcaption class="listing">Declare cursor syntax</figcaption>
+<pre>DECLARE name options CURSOR [ WITH HOLD ] FOR statement</pre>
+    
+<p>where options are</p>
+
+<dl>
+<dt>Binary</dt>
+<dd>Creates a cursor that returns binary data in big-endian byte order instead of text data. Note that <tt>psql</tt> is not prepared to handle binary data.</dd>
+<dd>Note that the binary option can be overridden when using the "extended query protocol".</dd>
+
+<dt>Insensitive</dt>
+<dd>Changes to the underlying data, made in the same transaction, are not visible in the cursor. In Postgres, all cursors are insensitive.</dd>
+
+<dt>With Hold</dt>
+<dd>The lifetime of the cursor is extended to the end of the session or until a close<tt></tt> command is issued on the cursor.</dd>
+
+<dt>Scroll</dt>
+<dt>No Scroll</dt>
+<dd>If the <tt>Scroll</tt> option is given, data can be retrieved in non-sequential fashion. The <tt>No Scroll</tt> option might result in a performance improvement. <tt>No Scroll</tt> should be considered the default.</dd>
+
+<dt>statement</dt>
+<dd>Can be a <tt>select</tt>, <tt>update</tt> or <tt>delete</tt> statement. A <tt>for update</tt> options locks the underlying records and prevents other sessions to make changes to the affected rows.</dd>
+</dl>
+
+<h3>Notes</h3><div>
+
+<p>Postgres does not support an <tt>open</tt> statement. A cursor is implicitly open after <tt>declare</tt>.</p>
+
+<p>Avaliable cursors can be looked up in the <tt>pg_cursors</tt> system view.</p>
+
+<p>In constrast to the SQL standard, Postgres allowls cursors to be used interactively.</p>
+
+<!-- h3 --></div>
+<!-- h2 --></div>
+
+<h2 cbc>Fetching Data</h2><div>
+
+<p>The <tt>FETCH</tt> command is used to retrieve one or more data rows from a cursor. The command expects a cursor name and a few optional arguments:</p>
+
+<figcaption class="listing">FETCH syntax</figcaption>
+<pre>FETCH [ direction [ FROM | IN ]] cursor-name</pre>
+
+<p>Where direction is one of</p>
+
+<dl>
+<dt>FIRST</dt>
+<dd>Fetches the first row.</dd>
+
+<dt>PRIOR</dt>
+<dd>Fetches the previous row.</dd>
+
+<dt>NEXT</dt>
+<dd>Fetches the next row.</dd>
+
+<dt>LAST</dt>
+<dd>Fetches the last row.</dd>
+
+<dt>BACKWARD [n]</dt>
+<dd>Returns n rows backwards in reverse order.</dd>
+
+<dt>FORWARD [n]</dt>
+<dd>Returns the next n rows.</dd>
+
+<dt>n</dt>
+<dd>Same as <tt>FORWARD n</tt>.</dd>
+
+<dt>ABSOLUTE m</dt>
+<dd>Moves to the n-th row and returns a single row.</dd>
+
+<dt>RELATIVE m</dt>
+<dd>Moves forward or backward from the current position and returns a single row.</dd>
+</dl>
+
+<p>Some directions allow to specify the number of records (n) to fetch, which can be an integer number, or the keyword <tt>ALL</tt>. If zero is specified, the current record is returned. Other commands specify the number of rows to move (m) and return a single row.</p>
+
+<p>NOTE that when fetching records <em>backwards</em>, the rows are delivered in reverse order!</p>
+
+<!-- h2 --></div>
+
+<h2 cbc>Closing a Cursor</h2><div>
+
+<p>It is advisable to close a curser when it is no longer needed. This releases allocated resources on the server. To close a cursor, run the follwing command:</p>
+
+<figcaption class="listing">Closing a cursor</figcaption>
+<pre>CLOSE cursor-name ;</pre>
+
+<!-- h2 --></div>
+
+<h2 cbc>Examples</h2><div>
+
+<pre class="box">DECLARE orderCursor FOR SELECT * FROM orders;
+
+</pre>
+
+<!-- h2 --></div>
+
+<p>Note that omitting b</p>
+
+    The CREATE CURSOR command needs a select statement that defines the record set, which is kept in memory until the cursor is closed.
+    Syntax
+        FETCH direction [ FROM | IN ] cursor
+    with direction being one of
+        NEXT
+        PRIOR 
+        FIRST
+        LAST
+        ABSOLUTE n
+        RELATIVE n
+        FORWARD n
+        BACKWARD n
+
+
+</main><footer id="page-footer"></footer><script type="module" src="/inc/page.js" ></script></body></html>

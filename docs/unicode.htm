@@ -14,15 +14,25 @@
 
 <link rel="stylesheet" href="/inc/page.css" />
  
-<title>PostgreSQL - Unicode</title>
+<title>PostgreSQL - Multilingual Support</title>
 
 </head><body><header id="page-header"></header><div id="main-toolbar"></div><main id="page-content">
 
-<h1>Code Pages and Unicode</h1>
+<h1>Multilingual Support</h1>
 
 <p id="page-abstract"></p>
 
-<p></p>
+<p>What worked:</p>
+
+<ul>
+<li>Windows console codepage set to 1252 (<tt>chcp 1252</tt>).</li>
+<li>PSQL encoding set to WIN1252 (<tt>\encoding win1252</tt>).</li>
+<li>Database created with UTF-8 encoding (<tt>create dabasbase dbname encoding 'UTF8'</tt>).</li>
+<li>CSV import file saved with encoding UTF-8 with LE BOM (byte-order-mark).</li>
+<li>CSV import specified with UTF-8 encoding (<tt>COPY table-name ( field-name, ... , field-name ) from 'datafile-name.csv' with (delimiter ',' , format csv, header true, encoding 'utf8' )</tt>).</li>
+</ul>
+
+<p>Finding: Codepage 65001 is Unicode-16 LE with BOM.</p>
 
 <h2 cbc>More Information</h2><div>
 

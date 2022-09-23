@@ -1,108 +1,1709 @@
-﻿<!DOCTYPE html>
+﻿
+<!DOCTYPE html>
 <html lang="en-US"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="template-info" file-name="empty.htm" version="2022-01-17" editor="usp" />
 <meta name="author" content="usp" />
-<meta name="creation-date" content="2021-12-11" />
+<meta name="creation-date" content="2022-02-15" />
 <meta name="editor" content="usp" />
-<meta name="change-date" content="2021-12-11" />
+<meta name="change-date" content="2021-03-03" />
 <meta name="version" content="1" />
 <meta name="categories" content="Programming > Database > PostgreSQL" />
 <meta name="tags" content="programming, database, PostgreSQL, tutorial, introduction" />
-<meta name="description" content="A guide through the first steps to create a database." />
+<meta name="description" content="This tutorial guides you through the steps of recreating and initializing a typical customer-product-order database, similar to the 1996 Northwind example, with some structural differences. It demonstrates how to use the Postgres interactive console PSQL, creating and running PSQL scripts, some ubiquituous SQL DML commds, the COPY command for importing CSV data into the database tables, and the use of of temporary tables for data preprocessing, SQL DDL commands to create and alter the database structure and sequence counters." />
 
 <link rel="stylesheet" href="/inc/page.css" />
+<style>
+table.flat-borders th { font-weight : normal ; text-align : left }
+table.flat-borders td { text-align : center }
+tr.vertical tx { writing-mode : vertical-lr ; font-family : "Segoe UI light" ;  }
+tr.vertical th:not(:first-child) div { transform-origin : 60px 60px ; transform : rotate(-90deg) ; max-width : 20px ; height : 120px ; border-color : transparent ; font-weight : 350 ; color : #000000 }
+</style>
  
-<title>PostgreSQL - First Steps</title>
+<title>PostgreSQL - Creating the Trade Database</title>
 
 </head><body><header id="page-header"></header><div id="main-toolbar"></div><main id="page-content">
 
-<h1>First Steps</h1>
+<h1>Creating the Trade Database</h1>
 
 <p id="page-abstract"></p>
 
-<h2 cbc>The Postgres Console</h2><div>
+<p>To begin, open a console window (cmd.exe).</p>
 
-<p><tt>plpsql</tt> is the Postgres console. Despite of its archaic appearance, it is quite an efficient tool.</p>
-<p>Connect to a database:</p>
-<pre>!TODO</pre>
-<p>Administrator prompt: <tt>database=#</tt></p>
-<p>Ordinary user prompt: <tt>database=></tt></p>
+<h2 cbc>Starting the Tools</h2><div>
 
+<p>Firstly, make sure that the database engine is running. The Postgres standard installation ensures that the database service is started automatically with the OS. Personally, I prefer to start the service on demand. This can be done interactively with the tool <tt>services.msc</tt>, or in a console window:</p>
 
-</div>
+<figcaption class="listing">Starting the Postgres database service</figcaption>
+<pre>net start postgresql-x64-14</pre>
 
-<h2 cbc>Create the Database</h2><div>
+<p>Note that this requires the postgres database service to be <a href="../how-to.htm#allow-start-stop">configured</a> to be controlled by interactively logged-on  users.</p>
 
-<p>The first task is to create the database creation script <tt>create-db.sql</tt>:</p>
+<p>Alternatively, you can use the <tt>pg_ctl</tt> tool to start and stop a server instance:</p>
 
-<figcaption class="listing">Database creation script</figcaption>
-<pre>
-CREATE DATABASE orga ENCODING 'UTF8' ;
+<pre>pg_ctl start -D d:\progs\pg\data</pre>
+
+<p>Note that the data directory must be specified in the -D argument or set in the <tt>PGDATA</tt> environment variable.</p>
+
+<p>Now that the database server is running, we can start the postgres console:</p>
+
+<figcaption class="listing">Start the Postgres terminal PSQL</figcaption>
+<pre>cd /d d:\github\bassmati-on-code\postgres\docs\first-steps
+chcp 1252
+psql.exe -d postgres -U postgres
+<cc>Password for user postgres:
+psql (14.2)
+Type "help" for help.</cc>
 </pre>
 
-<p><tt>orga</tt> is the database name. The encoding spefication is optional, but I think it is a good and flexible choice.</p>
+<p>The folder "first-steps" contains the CSV and script files for this tutorial. The change codepage command is necessary (on my computer) to match the codepage of the console window to the operating system's codepage. If they are different, you will get a warning, and country-specific characters outside of the ASCII range may not be shown correctly.</p>
 
-<p>To execute the script, start a console window like <tt>cmd.exe</tt>, and navigate (<tt>cd</tt>) to the script directory. Then start <tt>psql</tt>. Accept the defaults, then enter the password for the postgres server admin (<tt>postgres</tt>). Then you should see the following:</p>
+<p>Then <tt>PSQL</tt> is started. The arguments supply <tt>psql</tt> with the necessary connection information, except the password for the <tt>postgres</tt> user, which was set during the Postgres installation procedure and must be typed in.</p>
 
-<figcaption class="listing">Pspl welcome message</figcaption>
+<p>If everything went ok, you are welcomed at the psql superuser command prompt:</p>
+
+<figcaption class="listing">The PSQL superuser prompt</figcaption>
 <pre>
-psql (13.1)
-Type "help" for help.
+<cc>postgres=#</cc>
 </pre>
 
-<p>The <tt>\i</tt> command executes an SQL script file. So let's do that:</p>
+<!-- h2 --></div>
 
-<figcaption class="listing">Run the database creation script</figcaption>
-<pre>\i create-db.sql</pre>
+<h2 cbc>Creating the Database</h2><div>
 
-<p>The success message is non-verbose:</p>
+<p>The first task is to use some creativity to create the database creation script. That should contain two parts, the actual database creation code, and the code to create database-wide procedures and functions, such as common trigger functions.</p>
 
-<figcaption class="listing"></figcaption>
-<pre>CREATE DATABASE</pre>
+<h3 cbc>Database and Encoding</h3><div>
 
-<p>To check the database catalog, run the <tt>\l</tt> command:</p>
+<p>Create the file <tt>create-trade-db.sql</tt> and enter the following code:</p>
 
-<figcaption class="listing"></figcaption>
-<pre class="mono">
-      Name      |  Owner   | Encoding |          Collate           |           Ctype            |   Access privileges
-----------------+----------+----------+----------------------------+----------------------------+-----------------------
- orga           | postgres | UTF8     | English_United States.1252 | English_United States.1252 |
- postgres       | postgres | UTF8     | English_United States.1252 | English_United States.1252 |
- template0      | postgres | UTF8     | English_United States.1252 | English_United States.1252 | =c/postgres          +
-                |          |          |                            |                            | postgres=CTc/postgres
- template1      | postgres | UTF8     | English_United States.1252 | English_United States.1252 | =c/postgres          +
-                |          |          |                            |                            | postgres=CTc/postgres
+<figcaption class="listing"><a href="create-trade-db.sql">create-trade-db.sql</a></figcaption>
+<pre>\echo -- <cc>Creating the Trade database object</cc>
+CREATE DATABASE trade ;</pre>
+
+<p>This command creates the database object <tt>Trade</tt> with encoding UTF-8. </p>
+
+<p>To run the script, enter the following commands at the PSQL prompt:</p>
+
+<figcaption class="listing">Runing the database creation script</figcaption>
+<pre>\! pwd
+<cc>d:\github\bassmati-on-code\postgres\docs\first-steps</cc>
+\i create-trade-db.sql
+<cc>CREATE DATABASE
+postgres=#</cc></pre>
+
+<p>The <tt>\!</tt> command executes a console command. Here we will run the <tt>pwd</tt> command to print the name of the working directory. It should be the "first-steps" directory.</p>
+
+<p>The <tt>\i</tt> command "includes" and executes commands from a script file. If everyting went allright, the executed SQL command name is printed, <tt>CREATE DATABASE</tt> in this case.</p>
+
+<p>To check the database catalog, run the <tt>\l</tt> (list databases) command:</p>
+
+<figcaption class="listing">List of databases</figcaption>
+<pre><cc>postgres=#</cc> \l<cc>
+                                                 List of databases
+   Name    |  Owner   | Encoding |          Collate           |           Ctype            |   Access privileges
+-----------+----------+----------+----------------------------+----------------------------+-----------------------
+ postgres  | postgres | UTF8     | English_United States.1252 | English_United States.1252 | =Tc/postgres         +
+           |          |          |                            |                            | postgres=CTc/postgres
+ template0 | postgres | UTF8     | English_United States.1252 | English_United States.1252 | =c/postgres          +
+           |          |          |                            |                            | postgres=CTc/postgres
+ template1 | postgres | UTF8     | English_United States.1252 | English_United States.1252 | =c/postgres          +
+           |          |          |                            |                            | postgres=CTc/postgres
+ trade     | postgres | UTF8     | English_United States.1252 | English_United States.1252 | =Tc/postgres         +
+           |          |          |                            |                            | postgres=CTc/postgres
 (4 rows)
+postgres=#</cc></pre>
+
+<p>The next instructions will configure security and access control, so add the following echo statment to <tt>create-trade-db.sql</tt>:</p>
+
+<pre class="box">\echo <cc>-- Configuring database access</cc></pre>
+
+<p>The next revokes all permissions on the trade database:</p>
+
+<figcaption class="listing">Reoke permissions</figcaption>
+<pre><cc>postgres=#</cc> REVOKE all ON DATABASE postgres, template0, template1, trade FROM public, postgres;
+REVOKE
+<cc>                                                 List of databases
+   Name    |  Owner   | Encoding |          Collate           |           Ctype            |   Access privileges
+-----------+----------+----------+----------------------------+----------------------------+-----------------------
+ postgres  | postgres | UTF8     | English_United States.1252 | English_United States.1252 | 
+ template0 | postgres | UTF8     | English_United States.1252 | English_United States.1252 | 
+ template1 | postgres | UTF8     | English_United States.1252 | English_United States.1252 | 
+ trade     | postgres | UTF8     | English_United States.1252 | English_United States.1252 | 
+(4 rows)
+postgres=#</cc></pre>
+
+<p>Note that I have included the default databases here, just in case they haven't been harded yet.</p>
+
+<p>Don't be shy to include the <tt>postgres</tt> user in the list. The owner of a database always has full access permission. But make sure to include <tt>public</tt>, which stands for <em>the general public</em> or <em>everyone</em>. The command prevents that users can log in to any database. We want to grant connect permissions in a controlled manner later, when we create roles and users.</p>
+
+<p>Append the command to <tt>create-trade-db.sql</tt>.</p>
+
+<p>Next step revokes permissions on the schema <tt>public</tt>:</p>
+
+<figcaption class="listing">Reoke permissions</figcaption>
+<pre><cc>postgres=#</cc> \c trade
+<cc>You are now connected to database "trade" as user "postgres".</cc>
+<cc>postgres=#</cc> REVOKE ALL ON SCHEMA public FROM public, postgres;
+<cc>REVOKE
+trade=#</cc> \dn+
+                          List of schemas
+  Name  |  Owner   |  Access privileges   |      Description
+--------+----------+----------------------+------------------------
+ public | postgres |                      | standard public schema
+(1 row)
+trade=#
+<cc>postgres=#</cc></pre>
+
+<p>This revokes the critical <tt>create</tt> permission on the public schema, which is generally considered dangerous.</p>
+
+<p>Append the command to <tt>create-trade-db.sql</tt>.</p>
+
+<p>The next task is to configure the default privileges on the schema public:</p>
+
+<figcaption class="listing">Default schema permissions</figcaption>
+<pre>\echo -- <cc>Protect the database from untrusted users</cc>
+ALTER DEFAULT PRIVILEGES REVOKE all ON schemas FROM public ;
 </pre>
 
-<p>Verify that the <tt>orga</tt> database is there.</p>
+<p>Revoking all is just a starting point. Default privileges should be refined in order to provide safety <em>and</em> convenience. Subsequently created schemas will be configured properly.</p>
+
+<p>Append the command to <tt>create-trade-db.sql</tt>.</p>
+
+<!-- h3 --></div>
+
+<h3 cbc>Creating Schemas</h3><div>
+
+<p>A Schema in Postgres effectively is a <em>namespace</em>, not a structure as one might think. Schemas are used to group related database objects, and control access from users and groups.</p>
+
+<p>A starting point is to create a cross reference table of departments over tables, and determine their access permissions. Like so:</p>
+
+<table class="flat-borders"><thead><tr class="vertical">
+	<th></th>
+	<th><div>Sales</div></th>
+	<th><div>Purchase</div></th>
+	<th><div>Management</div></th>
+	<th><div>Accounting</div></th>
+	<th><div>Personnel</div></th>
+</tr></thead><tbody><tr>
+	<th>Region</th>
+	<td>y</td>
+	<td></td>
+	<td>y</td>
+	<td></td>
+	<td></td>
+</tr><tr>
+	<th>Territory</th>
+	<td>y</td>
+	<td></td>
+	<td>y</td>
+	<td></td>
+	<td></td>
+</tr><tr>
+	<th>EmployeeTerritory</th>
+	<td>y</td>
+	<td></td>
+	<td>y</td>
+	<td></td>
+	<td></td>
+</tr><tr>
+	<th>Employee</th>
+	<td>y</td>
+	<td>y</td>
+	<td>y</td>
+	<td>y</td>
+	<td>y</td>
+</tr><tr>
+	<th>Supplier</th>
+	<td>y</td>
+	<td>y</td>
+	<td>y</td>
+	<td>y</td>
+	<td></td>
+</tr><tr>
+	<th>ProductCategory</th>
+	<td>y</td>
+	<td>y</td>
+	<td>y</td>
+	<td></td>
+	<td></td>
+</tr><tr>
+	<th>Product</th>
+	<td>y</td>
+	<td>y</td>
+	<td>y</td>
+	<td>y</td>
+	<td></td>
+</tr><tr>
+	<th>Carrier</th>
+	<td>y</td>
+	<td></td>
+	<td>y</td>
+	<td>y</td>
+	<td></td>
+</tr><tr>
+	<th>Customer</th>
+	<td>y</td>
+	<td></td>
+	<td>y</td>
+	<td>y</td>
+	<td></td>
+</tr><tr>
+	<th>CustomerOrder</th>
+	<td>y</td>
+	<td></td>
+	<td>y</td>
+	<td>y</td>
+	<td></td>
+</tr><tr>
+	<th>CustomerOrderItem</th>
+	<td>y</td>
+	<td></td>
+	<td></td>
+	<td>y</td>
+	<td></td>
+</tr></tbody></table>
+
+<p>A database schema is a kind of "namespace". Database users can be granted access to a schema, then they have access to the database objects declared in that schema. Access to other schemas can be denied. This makes it possible to organize a complex database model into smaller areas of concern. However, according to the table above, the task seems to be difficult&hellip;</p>
+
+<p>To not overcomplicate matters in the <tt>Trade</tt> database, two namespaces should be enough: <tt>sales</tt> and <tt>internal</tt>. Sales must have access to all the tables mentioned above, and <tt>internal</tt> is for database internals, such as trigger functions. So, enter the following code into <tt>work.sql</tt>:</p>
+
+<figcaption class="listing">Creating the schemas</figcaption>
+<pre>\echo <cc>-- Creating Schemas</cc>
+CREATE SCHEMA if not exists Sales ;
+CREATE SCHEMA if not exists Internal ;
+</pre>
+
+<p>Then execute the script in PSQL:</p>
+
+<figcaption class="listing">Executing the script</figcaption>
+<pre><cc>trade=#</cc> \i work.sql<cc>
+-- Creating Schemas
+CREATE SCHEMA
+CREATE SCHEMA
+trade=#</cc></pre>
+
+<p>If that works as indicated above, move the code to the bottom of <tt>create-trade-db.sql</tt>.</p>
+
+<p>To list the schemas in a database, use the \dn command:</p>
+
+<figcaption class="listing">Executing the script</figcaption>
+<pre><cc>trade=#</cc> \dn+<cc>
+      List of schemas
+      Name      |  Owner   |  Access privileges   |      Description
+----------------+----------+----------------------+------------------------
+ accounting     | postgres |                      |
+ customerorder  | postgres |                      |
+ humanresources | postgres |                      |
+ management     | postgres |                      |
+ public         | postgres | postgres=UC/postgres+| standard public schema
+                |          | =UC/postgres         |
+ supplierorder  | postgres |                      |
+(6 rows)
+trade=#</cc></pre>
+
+<p>More information at <a href="https://www.postgresql.org/docs/current/sql-createschema.html">postgresql.org</a>.</p>
+
+<!-- h3 Creating the Schemas --></div>
+
+<p>Append these commands to <tt>create-trade-db.sql</tt>.</p>
+
+<h3 cbc>Roles</h3><div>
+
+<p>A <em>role</em> (or group) provides (or denies) access privileges to database objects and is used to separate the work of company departments. In contrary to a <em>user</em>, a role has always a <tt>nologin</tt> attribute. This prevents users from connecting to the database anonymously.</p>
+
+<p>We have already identified the roles, so we can create them. Enter the follwing code into <tt>work.sql</tt>:</p>
+
+<figcaption class="listing">Creating roles</figcaption>
+<pre>\echo <cc>-- Creating roles</cc>
+\set rolename='SalesManager'
+CREATE ROLE :rolename NOLOGIN ;
+GRANT connect, temporary ON DATABASE demo TO :rolename;
+GRANT select,insert,update, delete, references, trigger ON all tables IN SCHEMA sales TO :rolename;
+
+\set rolename='PurchaseManager'
+CREATE ROLE :rolename NOLOGIN ;
+GRANT connect, temporary ON DATABASE demo TO :rolename;
+GRANT select,insert,update, delete, references, trigger ON all tables IN SCHEMA sales TO :rolename;
+
+\set rolename='Management'
+CREATE ROLE :rolename NOLOGIN ;
+GRANT connect, temporary ON DATABASE demo TO :rolename;
+GRANT select,insert,update, delete, references, trigger ON all tables IN SCHEMA sales TO :rolename;
+
+\set rolename='Accountant'
+CREATE ROLE :rolename NOLOGIN ;
+GRANT connect, temporary ON DATABASE demo TO :rolename;
+GRANT select,insert,update, delete, references, trigger ON all tables IN SCHEMA sales TO :rolename;
+
+\set rolename='HumanResourcesManager'
+CREATE ROLE :rolename NOLOGIN ;
+GRANT connect, temporary ON DATABASE demo TO :rolename;
+GRANT select,insert,update, delete, references, trigger ON all tables IN SCHEMA sales TO :rolename;
+</pre>
+
+<p>Table access can certainly be more refined.</p>
+
+<p>Execute the script, and if something went wrong, <tt>drop</tt> the roles and try again. If everything is right, append the code to the end of <tt>create-trade-db.sql</tt>.</p>
+
+<!-- h3 --></div>
+
+<p>At this point, the database structure is laid out. The entire script can be found in <a href="./create-trade-db.sql" target="_blank">create-trade-db.sql</a>.</p>
 
 <!-- h2 Create the Database --></div>
 
-<h2 cbc>Creating the Schema</h2><div>
+<h2 cbc>Database Support Functions</h2><div>
 
-<p>In this step we will create the database tables and their relations. Create the file <tt>create-tables-1.sql</tt> and add the first table definition:</p>
+<p>The database support functions are created in the script <tt>create-db-functions.sql</tt>.</p>
 
-<figcaption class="listing"></figcaption>
-<pre></pre>
+<h3 cbc>Concurrent Update Conflict Detection</h3><div>
 
+<p>Interactively updated tables need to have an <tt>rg</tt> column that supports concurrent update conflict detection in combination with a trigger function. Insert the following code into <tt>work.sql</tt></p>
 
-<figcaption class="listing"></figcaption>
+<figcaption class="listing">The trigger function</figcaption>
+<pre>CREATE or replace FUNCTION internal.incrementRowGen ( ) returns trigger as $$ BEGIN
+-- Increment row generation counter in a record.
+IF new.rg is null OR old.rg + 1 = new.rg THEN
+    new.rg := old.rg + 1 ;
+    return new ;
+ELSE
+    return null ;
+END IF ; 
+END ; $$ LANGUAGE PLPGSQL ;
+</pre>
+
+<p>Then execute the script:</p>
+
+<figcaption class="listing">Creating the function</figcaption>
+<pre><cc>trade=#</cc> \i work.sql<cc>
+CREATE FUNCTION
+trade=#</cc></pre>
+
+<p>If that succeeded, move the code to <tt>create-db-functions.sql</tt>.</p>
+
+<p>Backgrounds for this function are laid out in the chapter "<a href="../conflict.htm">Concurrent Update Conflict Detection</a>". Summarized, the code checks whether an <tt>update</tt> statement supplied the correct value for the <tt>rg</tt> field. If not, the record is considered to have changed since the user has read his original version, and the update is aborted (by returning NULL).</p>
+
+<p>The code can be applied to every table that has an <tt>rg</tt> column. Later, when we create tables, we will write the update trigger code that calls this function.</p>
+
+<!-- h3 --></div>
+
+<!-- h2 --></div>
+
+<h2 cbc>Creating the Database Tables</h2><div>
+
+<p>In this section we are going to develop an SQL script that creates the database tables.</p>
+
+<p>A note ahead: If you feel lost and want to start over, execute the following commands in PSQL:</p>
+
+<figcaption class="listing">Resetting the Trade database</figcaption>
+<pre><cc>trade=#</cc> \c postgres<cc>
+You are now connected to database "postgres" as user "postgres".
+postgres=#</cc> drop database trade;<cc>
+DROP DATABASE
+postgres=#</cc> \i create-trade-db.sql<cc>
+CREATE DATABASE
+postgres=#</cc> \c trade<cc>
+You are now connected to database "trade" as user "postgres".
+trade=#</cc></pre>
+
+<p>There exist <em>relations</em> between tables. For example, a customer order is related to a specific customer. The database definition implements such relations with <em>constraints</em>. The customer ("parent") table must define a so-called <em>primary key constraint</em> which uniquely identifies a specific customer record, and the order table must define a <em>foreign key constraint</em> that <em>references</em> the customer's primary key.</p>
+
+<p>Because of these parent-child relations, database tables cannot be defined in random order &ndash; parent tables must be defined first. As a rule of thumb, start with tables which don't have any foreign key constraint. These are the root tables.  If you have a working database design, you can find out the these root tables by looking for foreign-key-constraints on the tables. If you have data files only, there is certainly some sort of try-and-error, but often there are indicators:</p>
+
+<ul>
+<li>they end with "ID"</li>
+<li>they contain the name of the referenced parent table</li>
+<li>the column contains integer data or strings that are cryptic and don't make real sense</li>
+</ul>
+
+<p>If you work systematically, with some practice, it is really not that hard.</p>
+
+<p>A typical example is the second column "<tt>customerID</tt>" in <tt>customer-order.csv</tt>. It has cryptic strings like "ALFKI" that can be also be found in the customer table in the first column, also named "customerID".</p>
+
+<p>Admittedly, creating a database from just CSV files is not exactly a no-brainer, but with a good strategy, it is doable.</p>
+
+<h3 cbc>The Procedure</h3><div>
+
+<p>We will need four  files:</p>
+
+<ul>
+<li><tt>list.txt</tt>: A complete list of import file names for tracking progress</li>
+<li><tt>work.sql</tt>: Contains the DDL code for the current target table</li>
+<li><tt>create-tables.sql</tt>: The complete tables creation script, built incrementally with DDL code successfully tested in <tt>work.sql</tt></li>
+<li><tt>postponed.sql</tt>: Scripts from <tt>work.sql</tt> that failed due to missing parent tables referenced by foreign-key-constraints are moved here.</li>
+</ul>
+
+<figcaption class="figure">Flow-chart for the procedure<br />Open <a href="fig-001.svg" target="_blank">image</a> in new window</figcaption>
+<div class="box" style="max-width:420px ; max-height:300px ; overflow-y:scroll">
+<object data="fig-001.svg" style="max-width:400px"></object>
+</div>
+
+<p>We begin with the compilation of <tt>list.txt</tt>. All the import CSV filenames (or more precise: the table names for the corresponding files) are placed on the list. The order is really not important, but it helps to place parent tables above child tables. Let common sense decide.</p>
+
+<p>To begin the iteraration, we pick the first file on the top of the list and inspect the contents. CSV files usually have column names in the first row. If not, you need some good portion of intuition or someone to ask. </p>
+
+<p>TIP: Import the CSV file into a spreadsheet. With a tabular representation, it is much easier to recognize column data types, primary and foreign key columns, and columns with NULL values.</p>
+
+<p>If the current file (i. e. table) has been postponed in a previous iteration, move the code back to <tt>work.sql</tt>. Alternatively, you can work on <tt>postponed.sql</tt> directly. The code you have previously created should be found at top of the file.</p>
+
+<p>Then create or edit the table DDL code in <tt>work.sql</tt>, including column names, their data types, defaults and contraints (primary key, foreign key, unique and not-null constraints). Execution of the script with the <tt>\i</tt> command in PSQL may succeed or fail, due to syntax errors or missing tables referenced from foreign key constrains. If execution succeeded, move the code to the end of <tt>create-tables.sql</tt>. Then delete the file name from <tt>list.txt</tt>, and repeat the procedure with the next topmost file on the list.</p>
+
+<p>If the execution of <tt>work.sql</tt> failed due to syntax errors, drop the target table if there is one, edit and retry.</p>
+
+<p>If execution of <tt>work.sql</tt> failed because referenced tables are missing, move the code in <tt>work.sql</tt> to the the top (!) of <tt>postponed.sql</tt> so that we can continue to work on this table later. Then move the entry for the referenced table to the top of <tt>list.txt</tt> and restart the procedure.</p>
+
+<p>It is possible that you found a whole chain of tables, related to each other by foreign key constraints. Then the DDL code for them will be stacked on top of each other in <tt>postponed.sql</tt>, parent tables above, child tables.</p>
+
+<p>This is done in a loop until all files have been removed from the list. To check that the table creation script is okay, we drop and re-create the database, and then run <tt>create-tables.sql</tt>. It should run with no errors and create the entire database in one go.</p>
+
+<!-- h3 --></div>
+
+<h3 cbc>List of Tables</h3><div>
+
+<p>Let's be lazy and take the import file names as listed by the <tt>dir</tt>  command (ls in the Bash):</p>
+
+<pre>category.csv
+customer-order-item.csv
+customer-order.csv
+customer.csv
+employee-territory.csv
+employee.csv
+product.csv
+region.csv
+shipper.csv
+supplier.csv
+territory.csv
+</pre>
+
+<p>The corresponding table names are</p>
+
+<pre>Carrier
+ProductCategory
+CustomerOrderItem
+CustomerOrder
+Customer
+EmployeeTerritory
+Employee
+Product
+Region
+Supplier
+Territory
+</pre>
+
+<p>This list is obviously in the wrong order. For example, it does not need much fantasy to recognize that Customer, CustomerOrder and CustomerOrderItem are upside down. Anyway, this should be a good scenario for testing the algorithm.</p>
+
+<p>Another change was made: Shipper.csv relates to the Carrier table. An inspection of the CSV file shows that this table has only a few simple columns and does not reference other tables, so it is a good one to begin with.</p>
+
+<!-- h3 --></div>
+
+<h3 cbc>Carrier</h3><div>
+
+<p><tt>Carrier</tt> is the first entry in the list, so we pick this one. A look into the related file <tt>shipper.csv</tt> reveals three columns, shipperID, companyName, and phone. ShipperID seems to contain integer data and serves as primary key, the others contain character data. So let's create the DDL command in <tt>work.sql</tt>:</p>
+
+<figcaption class="listing">Create table Carrier</figcaption>
+<pre>CREATE TABLE if not exists Carrier ( &hellip; ) ;</pre>
+
+<p>The SQL command should be more or less self-explanatory. Note the semicolon at the end, it is mandatory for SQL commands and triggers execution in PSQL.</p>
+
+<h4 cbc>Columns</h4><div>
+
+<p>The columns are created inside the round parentheses. First columns is the ID column:</p>
+
+<figcaption class="listing">The ID column</figcaption>
+<pre>ID integer PRIMARY KEY generated by default as identity ,</pre>
+
+<p>Deviating from the CSV file, the column is named "ID", without repeating the table name. If you encounter a column named ID, you can be sure that this is the primary key column of the table.  If you have multiple columns named ID in a single query, you simply qualify the name with the related table name, such as "table1.ID", "table2.ID", etc. So no problem, IMHO, shorter is better. </p>
+
+<p>The <tt>primary key</tt> constraint ensures that</p>
+
+<ol>
+<li>the values in this column are unique</li>
+<li>an index is created on this column</li>
+<li>the column can be used as target column in a foreign key constraint</li>
+</ol>
+
+<p><tt>Generated by default as identiy</tt> means that an INSERT statement doesn't have to (in fact, should not) provide a value for this column. The database will generate a unique value in a safe manner. An exception is a data import with the COPY statement as we will see later, but in this case we will have to provide extra measures to get the sequence counter back in sync with the new state of the column.</p>
+
+<p>The next column is something special: <tt>RG</tt>, which stands for "row" or "record generation". It is a counter that is incremented which each UPDATE statement. The column is used to detect concurrent update conflicts in UI applications, where records are read and after some indetermined time the records are updated. If the update statemen finds that RG has changes between reading and updating, the update must be aborted, and conflict resolution has to take place. Without going further into the details, here is the code:</p>
+
+<figcaption class="listing">The RG column</figcaption>
+<pre>RG integer not null default 0,</pre>
+
+<p>The default value ensures the right value if the INSERT statement does not supply a value.</p>
+
+<p>Next column in the CSV is <tt>companyName</tt>. Because there are not so many names in this table, we use the shorter "name" here:</p>
+
+<figcaption class="listing">The name column</figcaption>
+<pre>Name varchar(20) not null default '' ,</pre>
+
+<p>Usually, a NULL value in a record field indicates the absence of a value. But dealing with NULL tends to complicate queries and UIs. So as long as it can be avoided, columns should be defined with a <tt>not null</tt> constraint and provide a suitable default value instead. Here, an empty string does the job perfectly.</p>
+
+<p>The type here is a character type with a varying length, up to 20 characters.</p>
+
+<p>The last column contains phone number, a character type:</p>
+
+<figcaption class="listing">The phone column</figcaption>
+<pre>Phone varchar(20) not null default ''</pre>
+
+<p>That should be familiar now. NOTE that there is <em>no comma</em> at the end as this is the last column definition. Puttig a comma here is a syntax error.</p>
+
+<!-- h4 --></div>
+
+<h4 cbc>Update Trigger</h4><div>
+
+<p>As mentioned above, we need an update trigger to detect concurrent update conflicts.</p>
+
+<figcaption class="listing">Update trigger for the Carriers table</figcaption>
+<pre>CREATE or replace TRIGGER CarrierBeforeUpdate before update on Carrier
+for each row when ( old.* is distinct from new.* ) execute procedure incrementRowGen( ) ;
+</pre>
+
+<p>The code creates a "before update trigger" on the <tt>Carrier</tt> table that works on each row affected by the update statement. It executes the function <tt>incrementRowGen</tt> except if both new and old row versions are identical (i. e. it is not really an update because nothing in the database changes, but the update will succeed).</p>
+
+<!-- h4 --></div>
+
+<h4 cbc>A Default Record</h4><div>
+
+<p>Carriers can be referenced from other tables in a foreign key column. But what if that record has no carrier assigned? A NULL value in the foreign key field woud do the job perfectly. But even more perfect (should that ever become possible) would be an integer zero, referencing a "special" carrier record with the ID value of zero. There is no such thing as a free beer, so we must insert that record manually:</p>
+
+<figcaption class="listing">Creating the default carrier record</figcaption>
+<pre>INSERT into Carrier ( id, name, phone ) values ( 0, 'undefined', '' ) ;</pre>
+
+<!-- h4 --></div>
+
+<p>To put things together, here is the complete DDL code:</p>
+
+<figcaption class="listing">DDL code for the Carrier table</figcaption>
+<pre>\echo <cc>-- Creating table Carrier</cc>
+CREATE TABLE if not exists Carrier (
+    ID integer PRIMARY KEY generated by default as identity ,
+    RG integer not null default 0,
+    Name varchar(20) not null default '' ,
+    Phone varchar(20) not null default ''
+    ) ;
+CREATE or replace TRIGGER CarrierBeforeUpdate before update on Carrier
+    for each row when ( old.* is distinct from new.* ) execute procedure incrementRowGen( ) ;
+INSERT into Carrier ( ID, Name, Phone ) values ( 0, 'undefined', '' ) ;
+</pre>
+
+<p>The ID value "0" is a special case. The sequence counter is (usually) set to start with the value 1, so using zero for a special purpose is fine.</p>
+
+<p>Note the PSQL \echo command. This helps to keep track of things in console output.</p>
+
+<p>Now let's try this script in PSQL:</p>
+
+<figcaption class="listing">Executing work.sql</figcaption>
+<pre><cc>trade=#</cc> \i work.sql<cc>
+CREATE TABLE
+INSERT 0 1
+trade=#</cc></pre>
+
+<p>If an SQL command succeeds, the command name is echoed on the console. So "CREATE TABLE" is a success message. Similarly, "INSERT 0 1" is the success method for the insert command. So obviously, there is now a <tt>Carrier</tt> table in our <tt>Trade</tt> database. Let's have a look:</p>
+
+<figcaption class="listing">Inspecting the database</figcaption>
+<pre><cc>trade=#</cc> \d<cc>
+               List of relations
+ Schema |      Name      |   Type   |  Owner
+--------+----------------+----------+----------
+ public | carrier        | table    | postgres
+ public | carrier_id_seq | sequence | postgres
+(2 rows)
+trade=#</cc></pre>
+
+<p>The \d command lists the database object ("relations" in Postgres lingo). We have our table, and a sequence object. This is the ID value generator.</p>
+
+<p>Append the table name to the \d command to get information about the table structure:</p>
+
+<pre><cc>trade=#</cc> \d carrier<cc>
+                                  Table "public.carrier"
+ Column |         Type          | Collation | Nullable |             Default
+--------+-----------------------+-----------+----------+----------------------------------
+ id     | integer               |           | not null | generated by default as identity
+ rg     | integer               |           | not null | 0
+ name   | character varying(20) |           | not null | ''::character varying
+ phone  | character varying(20) |           | not null | ''::character varying
+Indexes:
+    "carrier_pkey" PRIMARY KEY, btree (id)
+trade=#</cc></pre>
+
+<p>Let's retrieve the records in the <tt>Carrier</tt> table:</p>
+
+<figcaption class="listing">Inspecting the database</figcaption>
+<pre><cc>trade=#</cc> SELECT * from Carrier;<cc>
+ id | rg |   name    | phone
+----+----+-----------+-------
+  0 |  0 | undefined |
+(1 row)
+trade=#</cc></pre>
+
+<p>There it is. Exactly as we inserted it. So we can consider the DDL script for the <tt>Carrier</tt> table completed. The next steps are</p>
+
+<ul>
+<li>Move the code in <tt>work.sql</tt> to <tt>create-tables.sql</tt></li>
+<li>Delete the topmost entry (Carrier) in <tt>list.txt</tt></li>
+<li>Continue with the next entry in the list</li>
+</ul>
+
+<!-- h3 --></div>
+
+<h3 cbc>Case Doesn't Matter. Or Does It?</h3><div>
+
+<p>You may have noticed that the database catalog returns names (i. e. <em>identifiers</em>) in lowercase letters, despite the fact that the DDL command had them nicely captitalized. Names are always converted to lowercase letters before they are stored in the database catalog. This has the effect that names are effectively case-insenstitive. In cases where case does matter, enclose the name in double quotes in the definition. Double-quoted names are stored in the database catalog as is, without conversion. But this comes at a price: You will always have to put such a name in double quotes wherever the identifer is used in the future&hellip;</p>
+
+<p>If you use the information returned by the database and present them directly in a UI, or example column names, you may want to preserve case information. It could save some effort. But consider going multi-lingual &mdash; then identifiers cannot be used anyway.</p>
+
+<p>You might argue that preserved case improves readability and comprehensibility. On the other hand, there are comment fields in the database catalog that can be used for this purpose. Additionally, there are the database creation scripts. They can be enriched with comments also.</p>
+
+<!-- h3 --></div>
+
+<h3 cbc>ProductCategory</h3><div>
+
+<p>The current topmost entry in the list is <tt>ProductCategory</tt>. The column names in <tt>category.csv</tt> are "categoryID", "categoryName", "description", and "picture". We will not make use of the picture column and drop them on import. And we will shorten column names as appropriate.</p>
+
+<p>Enter the following text into <tt>work.sql</tt>:</p>
+
+<figcaption class="listing">Product category DDL code</figcaption>
 <pre>
-CREATE TABLE IF NOT EXISTS items (
-    id INTEGER PRIMARY KEY GENERATED BY DEFAULT AS IDENTITY ON UPDATE CASCADE,
-    storageid INTEGER NOT NULL REFERENCES storage.id ,
-    nkey INTEGER UNIQUE,
-    name VARCHAR(50) NOT NULL DEFAULT "" ,
-    description TEXT DEFAULT ""
+\echo <cc>-- Creating table ProductCategory</cc>
+CREATE TABLE if not exists ProductCategory (
+    ID integer PRIMARY KEY generated by default as identity ,
+    RG integer not null default 0 ,
+    Name varchar(20) not null default '' ,
+    Description text not null default '' ,
     ) ;
 </pre>
 
+<p>The syntax of the ID and RG columns have been discussed above. <tt>Description</tt> is of type <tt>text</tt> because a product description might grow unpredictably&hellip;</p>
 
-<!-- h2 Creating the Schema --></div>
+<p>Note the <tt>\echo</tt> command in the first line. This is a PSQL command, not an SQL instruction, so we don't have to supply a semicolon at the end of the line.</p>
 
+<p>Just for fun, add a comma at the end of the last column declaration and let's see what happens&hellip;</p>
+
+<p>But before, as before, let's append a statement to insert a record for the undefined category:</p>
+
+<figcaption class="listing">Inserting the undefined category</figcaption>
+<pre>INSERT into ProductCategory ( id, name ) values ( 0, 'undefined' ) ;</pre>
+
+<p>This record eliminates the need for NULL values in foreign key columns of other tables.</p>
+
+<figcaption class="listing">Testing the workfile script</figcaption>
+<pre><cc>trade=#</cc> \i work.sql
+<cc>-- Creating table ProductCategory
+psql:work.sql:7: ERROR:  syntax error at or near ")"
+LINE 6:  ) ;
+         ^
+psql:work.sql:8: ERROR:  relation "productcategory" does not exist
+LINE 1: INSERT into ProductCategory ( id, name ) values ( 0, 'undefi...
+                    ^
+trade=#</cc></pre>
+
+<p>The syntax error is the comma at the end of the last column declaration. According to the flow chart, correct the mistake and retry execution:</p>
+
+<figcaption class="listing">Testing the workfile script</figcaption>
+<pre><cc>trade=#</cc> \i work.sql<cc>
+-- Creating table ProductCategory
+CREATE TABLE
+INSERT 0 1
+trade=#</cc></pre>
+
+<p>Well, that worked! According to the flow chart, append the code to table creation script, delete the topmost entry from the list and continue with the next item.</p>
+
+<p>To show the table definition, use the <tt>\d+</tt> command:</p>
+
+<figcaption class="listing">Display the table structure</figcaption>
+<pre><cc>trade=#</cc> \d+ ProductCategory<cc>
+                                                           Table "public.productcategory"
+   Column    |         Type          | Collation | Nullable |             Default              | Storage  | Compression | Stats target | Description
+-------------+-----------------------+-----------+----------+----------------------------------+----------+-------------+--------------+-------------
+ id          | integer               |           | not null | generated by default as identity | plain    |             |              |
+ rg          | integer               |           | not null | 0                                | plain    |             |              |
+ name        | character varying(20) |           | not null | ''::character varying            | extended |             |              |
+ description | text                  |           | not null | ''::text                         | extended |             |              |
+Indexes:
+    "productcategory_pkey" PRIMARY KEY, btree (id)
+Access method: heap
+trade=#</cc></pre>
+
+<p>We can see the column names, types and default values, as well as the indices.</p>
+
+<!-- h3 --></div>
+
+<h3 cbc>CustomerOrderItem</h3><div>
+
+<p>Did I mention that this is our first troublemaker? This table relates products to the order of a customer. But both tables, <tt>Customer</tt>, and <tt>CustomerOrder</tt> have not yet been defined&hellip;</p>
+
+<p>Anyway, we'll proceed as if we hadn't noticed.</p>
+
+<p>The <tt>customer-order-item.csv</tt> defines five columns, orderID, productID, unitPrice, quantity, and discount. Interesting here is that there is no customerOrderItemID column, the usual primary key column. This table is different. The primary key is a combination of orderID and productID.</p>
+
+<p>Both columns end on "ID", and begin with the name of some other table. They must be foreign key columns. Having this sorted out, we can compile the DDL code:</p>
+
+<figcaption class="listing">The DDL code</figcaption>
+<pre>\echo <cc>-- Creating table CustomerOrderItem</cc>
+CREATE TABLE if not exists CustomerOrderItem (
+    CustomerOrderID integer not null REFERENCES CustomerOrder( ID ) 
+        on update cascade 
+        on delete cascade ,
+    ProductID integer not null REFERENCES Product( ID ) 
+        on update cascade ,
+    PRIMARY KEY ( CustomerOrderID, ProductID ) ,
+    RG integer not null default 0 ,
+    UnitPrice money not null default 0 ,
+    Discount money not null default 0 ,
+    QuantityOrdered REAL not null default 0 ,
+    QuantityShipped REAL not null default 0 
+    ) ;
+COMMENT on table CustomerOrderItem is 'Relates products to customer orders.' ;
+COMMENT on column CustomerOrderItem.CustomerOrderID is 'When orders are archived and deleted from this database at the end of a fiscal year, the related order items must be deleted also. Therefore the on delete casade constraint.' ;
+</pre>
+
+<p>Some notes. Firstly, we have a <tt>primary key</tt> declaration. This is not a column, but a table constraint declaration, similar to the column declarations. Secondly, <tt>UnitPrice</tt> and <tt>Discount</tt> are of type <tt>money</tt>. This is recommended for monetary values in order to avoid rounding errors as they appear with other data types. Thirsty, quantities are of type real in order to enable fractions of a unit. Finally, we have comment declarations here. I did not include them everywhere, but I encourage you to do, wherever useful.</p>
+
+<p>Everything complete? Then let's go for a try:</p>
+
+<figcaption class="listing">Running the script</figcaption>
+<pre><cc>trade=#</cc> \i work.sql<cc>
+-- Creating table CustomerOrderItem
+psql:work.sql:14: ERROR:  relation "customerorder" does not exist
+trade=#</cc></pre>
+
+<p>That didn't work. The cause is a missing parent table, <tt>CustomerOrder</tt>. According to the flow chart, we move <tt>work.sql</tt> to <tt>postponed.sql</tt>, move the entry <tt>CustomerOrder</tt> to the top of the list, and start over.</p>
+
+<!-- h3 --></div>
+
+<h3 cbc>CustomerOrder</h3><div>
+
+<p>New top of the list is <tt>CustomerOrder</tt>. The CSV file has the follwing column names: orderID, customerID, employeeID, orderDate, requiredDate, shippedDate, shipVia, freight, shipName, shipAddress, shipCity, shipRegion, shipPostalCode, shipCountry. That is translated into the follwing table definition:</p>
+
+<figcaption class="listing">The DDL code</figcaption>
+<pre>\echo -- Creating table CustomerOrder
+CREATE TABLE if not exists CustomerOrder (
+    ID integer PRIMARY KEY generated by default as identity ,
+    RG integer not null default 0,
+    CustomerID integer not null REFERENCES Customer ( ID )
+		on update cascade ,
+    EmployeeID integer not null REFERENCES Employee ( ID ) 
+		on update cascade ,
+    OrderDate date ,
+    RequiredDate date ,
+    ShippedDate date ,
+    CarrierID integer not null default 0 references Carrier ( ID ) ,
+    ShippingCost money not null default 0, 
+    RecipientName varchar (50) not null default '' ,
+    RecipientAddress varchar (50) not null default '' ,
+    RecipientCity varchar (30) not null default '' ,
+    RecipientRegion varchar(30) not null default '' ,
+    RecipientPostalcode varchar (10) not null default '' ,
+    RecipientCountry varchar (20) not null default '' 
+    ) ;
+COMMENT on table CustomerOrder is 'Defines a customer order and records its state and fulfillment.' ; 
+</pre>
+
+<p>More trouble ahead: We are referencing yet more undefined tables&hellip;</p>
+
+<p>ID and RG as before. There are 3 foreign key constraints, on the columns <tt>CustomerID</tt>, <tt>EmployeeID</tt>, and <tt>CarrierID</tt>.</p>
+
+<p>Another problem: CustomerID is non-numeric in the CSV file. That will cause problems later when it comes to the data import. For some reason, I always want my keys to be integer, short, regular or long, but integer. With rare exceptions. We will deal with that later.</p>
+
+<p>The date columns don't have a <tt>not null</tt> constraint. The reason is that there is no date value that could elegantly represent the absence of a value. Event the date 0000-00-00 does not exist. The closest is 0001-01-01, but <em>that</em> looks strange, doesn't it? So DATE is one of the types that is allowed to have NULL values in a column.</p>
+
+<p>The rest should be self-explanatory. Let's give it a try:</p>
+
+<figcaption class="listing">Running the script</figcaption>
+<pre><cc>trade=#</cc> \i work.sql<cc>
+-- Creating table CustomerOrder
+psql:work.sql:20: ERROR:  relation "customer" does not exist
+psql:work.sql:21: ERROR:  relation "customerorder" does not exist
+trade=#</cc>
+</pre>
+
+<p>The table <tt>Customer</tt> does not exist. So let's follow the protocol, outlined in the flow chart, move the code to <tt>postponed.sql</tt>, bring the entry <tt>Customer</tt> to the top of the list and start over.</p>
+
+<!-- h3 --></div>
+
+<h3 cbc>Customer</h3><div>
+
+<p>New top of the list is <tt>Customer</tt>. The CSV file has the follwing column names: customerID, companyName, contactName, contactTitle, address, city, region, postalCode, country, phone, fax. This translates into the follwing DDL code:</p>
+
+<figcaption class="listing">DDL code for the customer table</figcaption>
+<pre>\echo -- Creating table Customer
+CREATE TABLE if not exists Customer (
+    ID integer PRIMARY KEY generated by default as identity ,
+    RG integer not null default 0,
+    Key char(5) unique not null,
+    Name varchar(50) not null default '' ,
+    ContactName varchar(30) not null default '' ,
+    ContactTitle varchar(30) not null default '' ,
+    Address varchar(50) not null default '' ,
+    City varchar(30) not null default '' ,
+    Region varchar(30) not null default '' ,
+    PostalCode varchar(10) not null default '' ,
+    Country varchar(30) not null default '' ,
+    Phone varchar(20) not null default '' ,
+    Fax varchar(20) not null default '' 
+    ) ;
+</pre>
+
+<p>Here we have seemingly strange <tt>key</tt> in addition to the <tt>id</tt> column. A look at the CSV file reveals that there the customer ID is a string that resembles the customer name to some degree. This is perfectly okay, but I prefer to have integer values, or to be more precise, "<a href="https://en.wikipedia.org/wiki/Surrogate_key">surrogate keys</a>", in all key constraint fields. Users might be attempted to fiddle around with the "natural key" in a UI, but with surrogate keys behind the curtains there is no chance to break database integrity.</p>
+
+<p>Both keys, surrogate and natural, may coexist in a table, so you can always decide which one to use in a GUI. Alternatively, you might drop the <tt>key</tt> column after data import.</p>
+
+<p>There is some logic related to this change. If you decide to go with the natural key only, you can simply drop that supplementary code and make the unique key column the primary key column.</p>
+
+<p>Okay, enough smalltalk, let's try the code:</p>
+
+<figcaption class="listing">Testing the code</figcaption>
+<pre><cc>trade=#</cc> \i work.sql<cc>
+-- Creating table Customer
+CREATE TABLE
+trade=#</cc></pre>
+
+<p>Perfect! The code in <tt>work.sql</tt> can be appended to the end of the table creation script, and the related entry can be removed from the list.</p>
+
+<!-- h3 --></div>
+
+<h3 cbc>CustomerOrder 2nd Try</h3><div>
+
+<p>The code for the topmost list item is already in <tt>postponed.sql</tt>. According to the flow chart, we move it to <tt>work.sql</tt> and try to execute it:</p>
+
+<figcaption class="listing">Retry</figcaption>
+<pre><cc>trade=#</cc> \i work.sql<cc>
+-- Creating table CustomerOrder
+psql:work.sql:20: ERROR:  relation "employee" does not exist
+psql:work.sql:21: ERROR:  relation "customerorder" does not exist
+trade=#</cc></pre>
+
+<p>That failed again, this time is the table <tt>Employee</tt> that is missing. (The second error message is the COMMENT instruction on the <tt>CustomerOrder</tt> table.)</p>
+
+<p>So move the code back to <tt>postponed.sql</tt>, move <tt>Employee</tt> to the top of the list and start over.</p>
+
+<!-- h3 --></div>
+
+<h3 cbc>Employee</h3><div>
+
+<p>The <tt>employee.csv</tt> defines the following columns: employeeID, lastName, firstName, title, titleOfCourtesy, birthDate, hireDate, address, city, region, postalCode, country, homePhone, extension, photo, notes, reportsTo, photoPath. This translates into the following DDL code:</p>
+
+<figcaption class="listing">DDL code for the employee table</figcaption>
+<pre>\echo -- Creating table Employee
+CREATE TABLE if not exists Employee (
+    ID integer PRIMARY KEY generated by default as identity ,
+    RG integer not null default 0,
+    LastName varchar(20) not null default '' ,
+    FirstName varchar(20) not null default '' ,
+    Title varchar(30) not null default '' ,
+    TitleOfCourtesy varchar(20) not null default '' ,
+    BirthDate DATE , 
+    HireDate DATE , 
+    Address varchar(50) not null default '' ,
+    City varchar(20) not null default '' ,
+    Region varchar(30) not null default '' ,
+    PostalCode varchar(10) not null default '' ,
+    Country varchar(20) not null default '' ,
+    HomePhone varchar(20) not null default '' ,
+    Extension varchar(5) not null default '' ,
+    Notes text not null default '' ,
+    ReportingParentID integer not null default 0 references Employee( ID )
+    ) ;
+INSERT into Employee ( id ) values ( 0 );
+COMMENT on column Employee.ReportingParentID is 'Defines the reporting tree. Use 0 to for employees that don''t report.' ;
+</pre>
+
+<p>The CSV columns <tt>photo</tt> and <tt>photoPath</tt> will not be used, so there are no related columns in the DDL code.</p>
+
+<p>Of special interest is the <tt>ReportingParentID</tt> column, fed from <tt>reportsto</tt> in the CSV file. This is a foreign key that references the primary key of the same table, and thereby defines a tree structure, the reporting tree. To avoid having NULL values in this column, we insert an artificial record with the ID value zero. We only have to define the ID value, the other fields will be set to their default values.</p>
+
+<p>Giving that a try:</p>
+
+<figcaption class="listing">Retry</figcaption>
+<pre><cc>trade=#</cc> \i work.sql<cc>
+-- Creating table Employee
+CREATE TABLE
+INSERT 0 1
+COMMENT
+trade=#</cc></pre>
+
+<p>Worked! And now: Follow the white flow chart&hellip;</p>
+
+<!-- h3 --></div>
+
+<h3 cbc>CustomerOrder, 3rd Try</h3><div>
+
+<p>The DDL code for the <tt>CustomerOrder</tt> table is in <tt>postponed.sql</tt> at the top. This time, we will deviate from the flow chart and execute <tt>postponed.sql</tt> instead of <tt>work.sql</tt>. Let's see how that works:</p>
+
+<figcaption class="listing">Executing postponed.sql</figcaption>
+<pre><cc>trade=#</cc> \i postponed.sql<cc>
+-- Creating table CustomerOrder
+CREATE TABLE
+COMMENT
+-- Creating table CustomerOrderItem
+psql:postponed.sql:36: ERROR:  relation "product" does not exist
+trade=#</cc></pre>
+
+<p>That worked &mdash; partially. The code for <tt>CustomerOrder</tt> succeeded, the code for <tt>CustomerOrderItem</tt> failed because of a missing referenced table (<tt>Product</tt>).</p>
+
+<p>Following the white rabbit, we move the succeeding code for <tt>CustomerOrder</tt> to the target script, delete the related top entry from the list and move the Product entry to the top. Then we start over.</p>
+
+<!-- h3 --></div>
+
+<h3 cbc>Product</h3><div>
+
+<p><tt>Product.csv</tt> defines the following columns: productID, productName, supplierID, categoryID, quantityPerUnit, unitPrice, unitsInStock, unitsOnOrder, reorderLevel, discontinued. Which translates into the following DDL code:</p>
+
+<figcaption class="listing">DDL code for the employee table</figcaption>
+<pre>\echo --- Creating table Product
+CREATE TABLE if not exists Product (
+    ID integer PRIMARY KEY generated by default as identity ,
+    RG integer not null default 0,
+    Name varchar(50) not null default '' ,
+    SupplierID integer not null references Supplier( ID ) 
+        on update cascade ,
+    ProductCategoryID integer not null references ProductCategory( ID ) 
+        on update cascade ,
+    UnitQuantity varchar (30) not null default '' ,
+    UnitPrice money not null default 0 ,
+    UnitsInStock real not null default 0.0 ,
+    UnitsOnOrder real not null default 0.0 ,
+    ReorderLevel real not null default 0.0 ,
+    Discontinued integer not null default 0
+    ) ;
+</pre>
+
+<p>A side note: The column <tt>UnitQuantity</tt> is not a numeric field, so it cannot be used for calculations. I think it is worth to consider a change here.</p>
+
+<p>Test:</p>
+
+<figcaption class="listing">Executing work.sql</figcaption>
+<pre><cc>trade=#</cc> \i work.sql<cc>
+--- Creating table Product
+psql:work.sql:16: ERROR:  relation "supplier" does not exist
+trade=#</cc></pre>
+
+<p>Once again a missing table. You know what to do. If not, have a look at the flow chart.</p>
+
+<!-- h3 --></div>
+
+<h3 cbc>Supplier</h3><div>
+
+<p><tt>Supplier.csv</tt> defines the following columns: supplierID, companyName, contactName, contactTitle, address, city, region, postalCode, country, phone, fax, homePage. That translates into the follwing code:</p>
+
+<figcaption class="listing">DDL code for Supplier</figcaption>
+<pre>\echo -- Creating table Supplier
+CREATE TABLE if not exists Supplier (
+    ID integer PRIMARY KEY generated by default as identity ,
+    RG integer not null default 0,
+    Name varchar(50) not null default '' ,
+    ContactName varchar(30) not null default '' ,
+    ContactTitle varchar(30) not null default '' ,
+    Address varchar(50) not null default '' ,
+    City varchar(30) not null default '' ,
+    Region varchar(30) not null default '' ,
+    PostalCode varchar(10) not null default '' ,
+    Country varchar(20) not null default '' ,
+    Phone varchar(20) not null default '' ,
+    Fax varchar(20) not null default '' ,
+    Homepage varchar(100) not null default ''
+    ) ;
+</pre>
+
+<p>Running the script:</p>
+
+<figcaption class="listing">Executing work.sql</figcaption>
+<pre><cc>trade=#</cc> \i work.sql<cc>
+-- Creating table Supplier
+CREATE TABLE
+trade=#</cc></pre>
+
+<p>Worked. Save, delete, next.</p>
+
+<!-- h3 --></div>
+
+<h3 cbc>Product, 2nd Try and CustomerOrderItem, 2nd Try</h3><div>
+
+<p><tt>Product</tt> DDL code is in <tt>postponed.sql</tt>, so we will execute that:</p>
+
+<figcaption class="listing">Executing work.sql</figcaption>
+<pre><cc>trade=#</cc> \i work.sql<cc>
+--- Creating table Product
+CREATE TABLE
+-- Creating table CustomerOrderItem
+CREATE TABLE
+trade=#</cc></pre>
+
+<p>Surprise, surprise: The code for <em>two</em> tables succeeden in one go. So we can append them both to the target script and remove the related items from the list.</p>
+
+<!-- h3 --></div>
+
+<h3 cbc>Remaining Tables</h3><div>
+
+<p>The remaining tables are <tt>EmployeeTerritory</tt>, <tt>Region</tt>, and <tt>Territory</tt>. I'll leave these as an exercise for the interested reader. If you need help, have a look at the <a href="create-tables.sql" target="_blank">create-tables.sql</a> script.</p>
+
+<!-- h3 --></div>
+
+<h3 cbc>Comments</h3><div>
+
+<p>Comments help you and others to identify the purpose of elements (tables, columns, indexes, constraints, schemas,&hellip;) and the relations among them. The value of a good (!) comment can never be underestimated. Some ideas:</p>
+
+<ul>
+<li>Never document the obvious. For example, a column named "ID" is always the primary key of a table. Similarly, "RG" is always the row (or record) generation counter. "Name" is always the name of the entity stored in a record. A foreign key field always references the primary key in another table. The type of a column can be shown with \d commands, so it doesn't have to be documented.</li>
+<li>Document the "why", not the "what". The "what" is already documented in the DDL code and can be retrieved with \d commands in psql. The "why" resides in the brain of developers, and deserves to be stored in a comment.</li>
+</ul>
+
+<!-- h3 --></div>
+
+<h3 cbc>Final Test</h3><div>
+
+<p>To make sure that the script works as expected, drop the trade database and recreated it from scratch:</p>
+
+<figcaption class="listing">Database reset script <a href="reset-trade-db.sql">reset-trade-db.sql</a></figcaption>
+<pre>-- Drops the entire trade db, recreates the structures and fills them with initial data.
+-- HANDLE WITH CARE! Your data will be destroyed!
+\c postgres
+drop database trade;
+\i create-trade-db.sql
+\c trade
+\i create-tables.sql
+</pre>
+
+<p>Check the console output for errors. If there are, correct them before proceeding to the next step: Data import.</p>
+
+<!-- h3 --></div>
+
+<!-- h2 --></div>
+
+<h2 cbc>Importing Initial Data</h2><div>
+
+<p>Initial data import should succeed if done in the same order as the tables were created.</p>
+
+<p>We can use two commands to import CSV data, the SQL COPY command, and the PSQL \copy command. The SQL COPY is performed on the server side, and the server must have access to the data files. The PSQL \copy is performed on the client side, which is often more convenient if the server is running on a remote machine.</p>
+
+<p>We will use two files during development:</p>
+
+<ul>
+<li>work.sql holds the script for the current CSV file</li>
+<li>import-data.sql will be filled from work.sql with working scripts</li>
+</ul>
+
+<p>You can develop the statements individually at the PSQL command prompt until they are correct. To retry, simply execute <tt>DELETE from table-name;</tt> or <tt>DROP table temporaryTable</tt> if required.</p>
+
+<h3 cbc>Carrier</h3><div>
+
+<p><tt>Carrier</tt> is the first table, the data can be found in <tt>shipper.csv</tt>. It is a small and simple file, so it is a good one to start with.</p>
+
+<p>The syntax of the copy command is</p>
+
+<pre>\copy target-table ( target-columns ) from source-file with ( options )</pre>
+
+<figcaption class="listing">The copy command</figcaption>
+<pre>\copy carrier ( id, name, phone ) FROM 'shipper.csv'
+  with ( format csv, header true, encoding 'utf8' ) ;</pre>
+
+<p>If the column structure of source and target tables are identical, you can omit the column list in the copy command. In our case, this is not possible, because there is the <tt>RG</tt> column in the target table, which does not exist in the CSV file. So the target column names are mandatory and must correspond to the columns in the CSV file. The "format CSV" specification is mandatory. "Header true" indicates that data import starts with the second line. "Encoding UTF8" is required if the source files contains non-ASCII international characters. This assumes that the database encoding is also UTF8.</p>
+
+<p>The <tt>ID</tt> column in the <tt>Carrier</tt> table has been declared as</p>
+<pre><hi>generated by default</hi> as identity</pre>
+
+<p>That means that the ID value is obtained from a sequence counter associated with this column if the insert command does not provide a value for this column. The CSV file carries the ID value in the first column, and the COPY command delivers this value to the ID column in the target table. This means that the sequence counter is never incremented during import. This poses a problem &ndash; the first INSERT after COPY will fail with a uniqueness contraint violation, because the sequence counter would deliver the number 1 for the ID column &ndash; which is already used.</p>
+
+<p>So we must manipulate the sequence counter after import, and set it to the highest value in the ID column, plus one. The following code does exactly that:</p>
+
+<figcaption class="listing">Updating the sequence counter</figcaption>
+<pre>SELECT max(id) + 1 as maxid from carrier ;
+\gset
+ALTER SEQUENCE carrier_id_seq restart with :maxid ;
+</pre>
+
+<p>The first instruction retrieves this value in the result set column named "maxid". The <tt>\gset</tt> command loads the result value(s) into PSQL variables with the same name. The third instruction sets the seqence counter to that value. To prove that this works, we add an INSERT statement at the bottom:</p>
+
+<figcaption class="listing">Checking with an insert statement</figcaption>
+<pre>INSERT into carrier (name, phone) values ( 'DHL', '(503) 555-1234' ) ;</pre>
+
+<p>Now we put that to a test:</p>
+
+<figcaption class="listing">Running the script</figcaption>
+<pre><cc>trade=#</cc> \i work.sql
+<cc>--- Importing Shipper data
+COPY 3
+ maxid
+-------
+     4
+(1 row)
+ALTER SEQUENCE
+INSERT 0 1
+trade=#</cc> select * from carrier;<cc>
+ id | rg |       name       |     phone
+----+----+------------------+----------------
+  1 |  0 | Speedy Express   | (503) 555-9831
+  2 |  0 | United Package   | (503) 555-3199
+  3 |  0 | Federal Shipping | (503) 555-9931
+  4 |  0 | DHL              | (503) 555-1234
+(4 rows)
+trade=#</cc></pre>
+
+<p>The SELECT command at the bottom shows the correct ID for the carrier DHL.</p>
+<p>We can move the code to the bottom of the <tt>import-data.sql</tt> file.</p>
+<p>Status update: First table imported, moving on to the next.</p>
+
+<!-- h3 --></div>
+
+<h3 cbc>ProductCategory</h3><div>
+
+<p>The ProductCategory is a special case. The CSV file has a column named "picture" which we don't use in the target database. Unfortunately, the COPY command needs a target column for every source column, otherwise it won't work. To get around this constraint, we have several options:</p>
+
+<ol>
+<li>Edit the source file and remove the column.</li>
+<li>Append a dummy column to the target table, import, remove the dummy column.</li>
+<li>Create a temporary table with the extra column, import, copy data from the temporary into the target table, then drop the temporary table.</li>
+</ol>
+
+<p>We have the opportunity to use a temporary table, so let's try that.</p>
+
+<p>We can exploit the DDL syntax and create a structural copy of an existing table with no data:</p>
+
+<figcaption class="listing">Copying the table structure</figcaption>
+<pre>CREATE TEMPORARY TABLE temporarytable 
+    AS TABLE ProductCategory with no data ;</pre>
+
+<p>This creates the columns, but without constraints and defaults:</p>
+
+<figcaption class="listing">The copied table structure</figcaption>
+<pre>trade=# \d temporarytable
+                   Table "pg_temp_3.temporarytable"
+   Column    |         Type          | Collation | Nullable | Default
+-------------+-----------------------+-----------+----------+---------
+ id          | integer               |           |          |
+ rg          | integer               |           |          |
+ name        | character varying(20) |           |          |
+ description | text                  |           |          |
+</pre>
+
+<p>Fortunately, <tt>category.csv</tt> has no NULL values in the data, so we are on the safe side here. But we need an additional column for the picture data:</p>
+
+<figcaption class="listing">Adding the picture column</figcaption>
+<pre>ALTER TABLE TemporaryTable ADD COLUMN picture text ;</pre>
+
+<p>Then we are ready to copy the CSV data into the temporary table:</p>
+
+<figcaption class="listing">The copy command</figcaption>
+<pre>\copy TemporaryTable ( id, name, description, picture ) FROM 'category.csv' with ( format csv, header true, encoding 'utf8' )</pre>
+
+<p>Note that we don't have to terminate the command with a semicolon (as required for SQL commands), because we use the PSQL <tt>\copy</tt> command here.</p>
+
+<p>When done, we can get rid of the picture column:</p>
+
+<figcaption class="listing">Dropping the picture column</figcaption>
+<pre>ALTER TABLE TemporaryTable DROP COLUMN picture ;</pre>
+
+<p>Now we are ready for the second copy step:</p>
+
+<figcaption class="listing">Copying into the target table</figcaption>
+<pre>INSERT into ProductCategory (id, name, description) 
+    select id, name, description from TemporaryTable ;</pre>
+
+<p>The temporary table is no longer needed:</p>
+<figcaption class="listing">Dropping the temporary table</figcaption>
+<pre>DROP TABLE TemporaryTable ;</pre>
+
+<p>Then we have to adjust the sequence counter for the generated ID column, as seen before:</p>
+<figcaption class="listing">Adjusting the sequence counter</figcaption>
+<pre>SELECT max(id) + 1 as maxid from ProductCategory;
+\gset
+ALTER SEQUENCE ProductCategory_id_seq restart with :maxid ;
+</pre>
+
+<p>A product may not (yet) have a category assigned. We could use a NULL value in the foreign key field in the Product table for this purpose, but, because nullable columns tend to increase the complexity of logic, we use a dedicated entry for this purpose:</p>
+
+<figcaption class="listing">The unassinged category</figcaption>
+<pre>INSERT into ProductCategory ( id, name ) values ( 0, 'undefined' ) ;</pre>
+
+<p>For clarity, here is the entire code:</p>
+
+<figcaption class="listing">The code for importing ProductCategory data</figcaption>
+<pre>\echo -- Importing ProductCategory data
+CREATE TEMPORARY TABLE temporarytable 
+    AS TABLE ProductCategory with no data ;
+ALTER TABLE TemporaryTable ADD COLUMN picture text ;
+\copy TemporaryTable ( id, name, description, picture ) 
+    FROM 'category.csv' 
+    with ( format csv, header true, encoding 'utf8' )
+ALTER TABLE TemporaryTable DROP COLUMN picture ;
+INSERT into ProductCategory (id, name, description) 
+    select id, name, description from TemporaryTable ;
+DROP TABLE TemporaryTable ;
+SELECT max(id) + 1 as maxid from ProductCategory;
+\gset
+ALTER SEQUENCE ProductCategory_id_seq 
+    restart with :maxid ;
+INSERT into ProductCategory ( id, name ) 
+    values ( 0, 'undefined' ) ;
+</pre>
+
+<p>Executing the script:</p>
+
+<figcaption class="listing">Executing the import script</figcaption>
+<pre><cc>trade=#</cc> \i work.sql<cc>
+-- Importing ProductCategory data
+CREATE TABLE AS
+ALTER TABLE
+COPY 8
+ALTER TABLE
+INSERT 0 8
+DROP TABLE
+ maxid
+-------
+     9
+(1 row)
+ALTER SEQUENCE
+INSERT 0 1
+trade=#</cc></pre>
+
+<p>This is a success. Move the code from <tt>work.sql</tt> to the end of <tt>import-data.sql</tt>, and proceed with the next table(s) in the order of apperance in <tt>create-tables.sql</tt>.</p>
+
+<!-- h3 --></div>
+
+<h3 cbc>Customer</h3><div>
+
+<p>The <tt>Customer</tt> table is a special case, because we have two different systems: a) the CSV data with the character-type <tt>CustomerID</tt> primary key column, and the <tt>Trade</tt> database with the numeric primary key column <tt>ID</tt>. The ID values in each system are different, but closely related to each other. </p>
+
+<p>This is an often-encountered real-world problem. In the following sections I will show a way how to deal with that.</p>
+
+  <p>Here is the import code:</p>
+
+<figcaption class="listing">Import code for the Customer table</figcaption>
+<pre>\echo <cc>-- Importing Customer data</cc>
+\copy Customer ( key, name, contactname, contacttitle,  address, city, region, postalcode, country, phone, fax ) FROM 'customer.csv' with ( format csv, header true, encoding 'utf8' ) ;
+</pre>
+
+<p>Test: </p>
+
+<figcaption class="listing">Running the Customer data import script</figcaption>
+<pre><cc>trade=#</cc> \i work.sql<cc>
+-- Importing Customer data
+COPY 91
+trade=#</cc></pre>
+
+<p>We don't need to adjust the ID column sequence counter here, because the copy command does not supply values for it. Instead, the database generates values in this column.</p>
+
+<figcaption class="listing">Data excerpt from the customer table</figcaption>
+<pre><cc>trade=#</cc> select id, key, name from customer limit 10;<cc>
+ id |  key  |                name
+----+-------+------------------------------------
+  1 | ALFKI | Alfreds Futterkiste
+  2 | ANATR | Ana Trujillo Emparedados y helados
+  3 | ANTON | Antonio Moreno Taquería
+  4 | AROUT | Around the Horn
+  5 | BERGS | Berglunds snabbköp
+  6 | BLAUS | Blauer See Delikatessen
+  7 | BLONP | Blondesddsl père et fils
+  8 | BOLID | Bólido Comidas preparadas
+  9 | BONAP | Bon app'
+ 10 | BOTTM | Bottom-Dollar Markets
+(10 rows)
+trade=#</cc></pre>
+
+<p>Note the generated ID values, side by side with the key values used in the CSV file.</p>
+
+<!-- h3 --></div>
+
+<h3 cbc>Employee</h3><div>
+
+<p>The import code for the <tt>Employee</tt> data is very similar to the code above, so we will not disect every detail here:</p>
+
+<figcaption class="listing">The employee import code</figcaption>
+<pre>\echo <cc>-- Importing Employee data</cc>
+\copy Employee ( id, lastname,  firstname, title, titleofcourtesy, birthdate, hiredate, address, city, region, postalcode, country, homephone, extension, notes, reportsto ) FROM 'employee.csv' with ( format csv, header true, encoding 'utf8' , null 'NULL' ) ;
+</pre>
+
+<figcaption class="listing">Running the code</figcaption>
+<pre><cc>trade=#</cc> \i work.sql<cc>
+-- Importing Employee data
+psql:work.sql:2: ERROR:  extra data after last expected column
+CONTEXT:  COPY employee, line 2: "1,Davolio,Nancy,Sales Representative,Ms.,1948-12-08 00:00:00.000,1992-05-01 00:00:00.000,507 20th Av..."
+trade=#</cc></pre>
+
+<p>That didn't work. The cause is that there are two columns in the CSV file, <tt>photo</tt> and <tt>photoPath</tt>, which aren't used in the database table. This time, instead going for a temporary table as shown above, we will change the target table diretly.</p>
+
+<p>This time we will go for a direct import into the target table, without the intermediate step of a temporary table. We add two dummy columns:</p>
+
+<figcaption class="listing">Adding dummy columns to the target table</figcaption>
+<pre>ALTER TABLE employee ADD COLUMN dummy1 text ;
+ALTER TABLE employee ADD COLUMN dummy2 text ;
+</pre>
+
+<p>The columns have to be inserted into the copy command:</p>
+
+<figcaption class="listing">Adding dummy columns to the copy command</figcaption>
+<pre>\copy Employee ( id, lastname,  firstname, title, titleofcourtesy, birthdate, hiredate, address, city, region, postalcode, country, homephone, extension, dummy1, notes, reportsto, dummy2 ) FROM 'employee.csv' with ( delimiter ',' , format csv, header true, encoding 'utf8' , null 'NULL' ) ;</pre>
+
+<p>They can be dropped immediately after the copy command finished:</p>
+
+<figcaption class="listing">Dropping unused columns</figcaption>
+<pre>ALTER TABLE employee DROP COLUMN dummy1 ;
+ALTER TABLE employee DROP COLUMN dummy2 ;
+</pre>
+
+<p>Next try:</p>
+
+<figcaption class="listing">Running the code</figcaption>
+<pre><cc>trade=#</cc> \i work.sql<cc>
+-- Importing Employee data
+ALTER TABLE
+ALTER TABLE
+psql:work.sql:4: ERROR:  column "reportsto" of relation "employee" does not exist
+ALTER TABLE
+ALTER TABLE
+trade=#</cc></pre>
+
+<p>Yeah, the column has been renamed to <tt>reportingParentID</tt>. Correct that and retry:</p>
+
+<figcaption class="listing">Running the code</figcaption>
+<pre><cc>trade=#</cc> \i work.sql<cc>
+-- Importing Employee data
+ALTER TABLE
+ALTER TABLE
+psql:work.sql:4: ERROR:  null value in column "reportingparentid" of relation "employee" violates not-null constraint
+DETAIL:  Failing row contains (2, 0, Fuller, Andrew, Vice President Sales, Dr., 1952-02-19, 1992-08-14, 908 W. Capital Way, Tacoma, WA, 98401, USA, (206) 555-9482, 3457, Andrew received his BTS commercial in 1974 and a Ph.D. in intern..., null, 0x151C2F00020000000D000E0014002100FFFFFFFF4269746D617020496D6167..., http://accweb/emmployees/fuller.bmp).
+CONTEXT:  COPY employee, line 3: "2,Fuller,Andrew,Vice President Sales,Dr.,1952-02-19 00:00:00.000,1992-08-14 00:00:00.000,908 W. Capi..."
+ALTER TABLE
+ALTER TABLE
+trade=#</cc></pre>
+
+<p>Obviously, the CSV file uses NULL values to indicated absence of data. That does not fit our database model, where we use integer zero to indicate "nobody". To address the problem, we drop the not-null constraint on this columns, import the data, replace the NULL values with integer zero, and then reestablish the not-null constraint.</p>
+
+<figcaption class="listing">Dropping the constraint</figcaption>
+<pre>ALTER table employee ALTER COLUMN reportingParentID DROP not null ;</pre>
+
+<p>After the \copy command insert this code:</p>
+
+<figcaption class="listing">Replacing NULL values and re-establishing the constraint</figcaption>
+<pre>UPDATE employee set reportingParentID=0 where reportingParentID is null ;
+ALTER table employee ALTER COLUMN reportingParentID SET not null ;
+</pre>
+
+<p>Retry:</p>
+
+<figcaption class="listing">Running the code</figcaption>
+<pre><cc>trade=#</cc> \i work.sql<cc>
+-- Importing Employee data
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+psql:work.sql:5: ERROR:  null value in column "region" of relation "employee" violates not-null constraint
+DETAIL:  Failing row contains (5, 0, Buchanan, Steven, Sales Manager, Mr., 1955-03-04, 1993-10-17, 14 Garrett Hill, London, null, SW1 8JR, UK, (71) 555-4848, 3453, Steven Buchanan graduated from St. Andrews University in Scotlan..., 2, 0x151C2F00020000000D000E0014002100FFFFFFFF4269746D617020496D6167..., http://accweb/emmployees/buchanan.bmp).
+CONTEXT:  COPY employee, line 6: "5,Buchanan,Steven,Sales Manager,Mr.,1955-03-04 00:00:00.000,1993-10-17 00:00:00.000,14 Garrett Hill,..."
+ALTER TABLE
+ALTER TABLE
+trade=#</cc></pre>
+
+<p>Now it is the <tt>region</tt> column that contains null values. Same procedure as last year:</p>
+
+<figcaption class="listing">Dropping the constraint</figcaption>
+<pre>ALTER table employee ALTER COLUMN region DROP not null ;</pre>
+
+<p>After the \copy command insert this code:</p>
+
+<figcaption class="listing">Replacing NULL values and re-establishing the constraint</figcaption>
+<pre>UPDATE employee set region=0 where region is null ;
+ALTER table employee ALTER COLUMN region SET not null ;
+</pre>
+
+<p>Retry:</p>
+
+<figcaption class="listing">Running the code</figcaption>
+<pre><cc>trade=#</cc> \i work.sql<cc>
+-- Importing Employee data
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+COPY 9
+UPDATE 4
+UPDATE 1
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+trade=#</cc></pre>
+
+<p>That looks much better. We have 9 rows imported, and 5 have been updated with integer zero where a NULL value was present before. Let's retrieve some data:</p>
+
+<figcaption class="listing">Retrieve employee data</figcaption>
+<pre><cc>trade=#</cc> select id, rg, lastname, firstname, city, region, reportingParentId from employee;<cc>
+ id | rg | lastname  | firstname |   city   | region | reportingparentid
+----+----+-----------+-----------+----------+--------+-------------------
+  0 |  0 | nobody    |           |          |        |                 0
+  1 |  0 | Davolio   | Nancy     | Seattle  | WA     |                 2
+  3 |  0 | Leverling | Janet     | Kirkland | WA     |                 2
+  4 |  0 | Peacock   | Margaret  | Redmond  | WA     |                 2
+  8 |  0 | Callahan  | Laura     | Seattle  | WA     |                 2
+  5 |  0 | Buchanan  | Steven    | London   | 0      |                 2
+  6 |  0 | Suyama    | Michael   | London   | 0      |                 5
+  7 |  0 | King      | Robert    | London   | 0      |                 5
+  2 |  0 | Fuller    | Andrew    | Tacoma   | WA     |                 0
+  9 |  0 | Dodsworth | Anne      | London   | 0      |                 5
+(10 rows)
+trade=#</cc></pre>
+
+<p>One thing remains: Updating the sequence counter. Append the code to <tt>work.sql</tt>:</p>
+
+<figcaption class="listing">Running the code</figcaption>
+<pre>SELECT max(id) + 1 as maxid from Employee ;
+\gset
+ALTER SEQUENCE employee_id_seq restart with :maxid ;
+</pre>
+
+<p>ATTENTION: We can <em>NOT</em> re-run <tt>work.sql</tt> as we have done before, because that would duplicate existing data. But we have two options: a) Move the tested code to the target script <tt>create-tables.sql</tt>, then add the lines above to <tt>work.sql</tt>, then execute the script.</p>
+
+<p>Or b) Enter the code directly in the PSQL console and execute it there.</p>
+
+<p>Or c) Add the lines to the end of <tt>work.sql</tt>, then execute the statements <tt>delete from employee where id>0;</tt> and <tt>ALTER SEQUENCE employee_id_seq restart with 1;</tt> in PSQL, then re-run the script.</p>
+
+<p>I opted for a):</p>
+
+<figcaption class="listing">Running the code</figcaption>
+<pre><cc>trade=#</cc> \i work.sql<cc>
+trade=#</cc></pre>
+
+<figcaption class="listing">Running the code</figcaption>
+<pre><cc>trade=#</cc> \i work.sql<cc>
+ maxid
+-------
+    10
+(1 row)
+ALTER SEQUENCE
+trade=#</cc></pre>
+
+<p>Don't forget to move these lines to <tt>create-tables.sql</tt>!</p>
+
+<!-- h3 --></div>
+
+<h3 cbc>CustomerOrder</h3><div>
+
+<p>The import file <tt>customer-order.csv</tt> also has special effects: The CSV file uses an alpha-key for the primary key column, the database uses the integer ID column. That looks difficult, so we will use a temporary table for intermediate results.</p>
+
+<p>A [temporary] table can be easily creation with a structure copy command:</p>
+
+<figcaption class="listing">Copying a table structure without data</figcaption>
+<pre>CREATE TABLE temporarytable AS TABLE CustomerOrder WITH NO DATA ;</pre>
+
+<p>This duplicates the columns and their data types, but no constraints, neither on columns, nor on the table.</p>
+<p>Then we can add the <tt>key</tt> column for the foreign key used in the CSV data.</p>
+
+<figcaption class="listing">Copying a table structure without data</figcaption>
+<pre>ALTER TABLE TemporaryTable ADD COLUMN CustomerKey varchar( 5 ) not null references Customer (key) ;
+</pre>
+
+<p>Then we can add the copy command, which already should be familiar. After that, we must fill the <tt>customerID</tt> column with the equivalent for the foreign key value that is used in the CSV file. A select statement with a subselect does the trick:</p>
+
+<figcaption class="listing">Filling the <tt>customerID</tt> column</figcaption>
+<pre>UPDATE TemporaryTable set CustomerID = ( select ID from Customer where Customer.Key = TemporaryTable.CustomerKey );</pre>
+
+<p>Before we can copy the rows into the target table, we must ensure that the column structure is identical. Therefore we drop the <tt>customerKey</tt> column. After the COPY command we can drop the entire temporary table:</p>
+
+<figcaption class="listing">Copying the rows to the target table</figcaption>
+<pre>ALTER TABLE TemporaryTable DROP COLUMN CustomerKey ; 
+INSERT into CustomerOrder select * from TemporaryTable;
+DROP TABLE TemporaryTable ;
+</pre>
+
+<p>With this code in <tt>work.sql</tt>, we can give it a try:</p>
+
+<figcaption class="listing">Running the code</figcaption>
+<pre><cc>trade=#</cc> \i work.sql<cc>
+-- Importing CustomerOrder data
+CREATE TABLE AS
+ALTER TABLE
+COPY 830
+UPDATE 830
+ALTER TABLE
+psql:work.sql:7: ERROR:  null value in column "rg" of relation "customerorder" violates not-null constraint
+DETAIL:  Failing row contains (10248, null, 85, 5, 1996-07-04, 1996-08-01, 1996-07-16, 3, $32.38, Vins et alcools Chevalier, 59 rue de l'Abbaye, Reims, null, 51100, France).                                                         ^
+DROP TABLE
+trade=#</cc></pre>
+
+<p>Oops, that didn't work entirely well: Null values again, in the <tt>rg</tt> column. That can be addressed with the following statement:</p>
+
+<figcaption class="listing">Replacing null values in the RG column</figcaption>
+<pre>UPDATE temporaryTable set rg=0 ;</pre>
+
+<p>Before we can retry, we must reset the table to its original state:</p>
+
+<figcaption class="listing">Delete the imported rows, then retry</figcaption>
+<pre>delete from customerOrder ;
+\i work.sql</pre>
+
+<figcaption class="listing">Running the code</figcaption>
+<pre><cc>trade=#</cc> delete from customerOrder ;<cc>
+DELETE 830
+trade=#</cc> \i work.sql<cc>
+-- Importing CustomerOrder data
+CREATE TABLE AS
+ALTER TABLE
+COPY 830
+UPDATE 830
+UPDATE 830
+ALTER TABLE
+psql:work.sql:8: ERROR:  null value in column "recipientregion" of relation "customerorder" violates not-null constraint
+DETAIL:  Failing row contains (10248, 0, 85, 5, 1996-07-04, 1996-08-01, 1996-07-16, 3, $32.38, Vins et alcools Chevalier, 59 rue de l'Abbaye, Reims, null, 51100, France).
+DROP TABLE
+trade=#</cc></pre>
+
+<p>Oh, null values again! We know how to address that. By the way, the same thing happend in the column <tt>RecipientPostalCode</tt>. So we add the following lines and retry:</p>
+
+<figcaption class="listing">Replace null values</figcaption>
+<pre>UPDATE temporaryTable set recipientRegion=0 where recipientRegion is null ;
+UPDATE temporaryTable set recipientPostalCode='' where recipientPostalCode is null ;
+</pre>
+
+<figcaption class="listing">Running the code</figcaption>
+<pre><cc>trade=#</cc> delete from customerOrder ;<cc>
+DELETE 830
+trade=#</cc> \i work.sql<cc>
+-- Importing CustomerOrder data
+CREATE TABLE AS
+ALTER TABLE
+COPY 830
+UPDATE 830
+UPDATE 830
+UPDATE 507
+UPDATE 19
+ALTER TABLE
+INSERT 0 830
+DROP TABLE
+trade=#</cc></pre>
+
+<p>Now it works. Last thing that is missing is the sequence counter update for the ID column.</p>
+
+<figcaption class="listing">Running the code</figcaption>
+<pre>SELECT max(id) + 1 as maxid from CustomerOrder ;
+\gset
+ALTER SEQUENCE CustomerOrder_id_seq restart with :maxid ;
+</pre>
+
+<p>Finally, we delete the rows and retry the script:</p>
+
+<figcaption class="listing">Reset and retry</figcaption>
+<pre><cc>trade=#</cc> delete from customerOrder ;<cc>
+DELETE 830
+trade=#</cc> \i work.sql<cc>
+-- Importing CustomerOrder data
+CREATE TABLE AS
+ALTER TABLE
+COPY 830
+UPDATE 830
+UPDATE 830
+UPDATE 507
+UPDATE 19
+ALTER TABLE
+INSERT 0 830
+ maxid
+-------
+ 11078
+(1 row)
+ALTER SEQUENCE
+DROP TABLE
+trade=#</cc></pre>
+
+<p>Done. Move the code to the bottom of <tt>import-data.sql</tt>.</p>
+
+<!-- h3 --></div>
+
+<h3 cbc>More Imports</h3><div>
+
+<p>The following imports are not really special any more, so I'll just paste the code here without comments.</p>
+
+<pre>\echo <cc>-- Importing Supplier data</cc>
+\copy Supplier (id, name, contactName, contactTitle, address, city, region, postalCode, country, phone, fax, homepage ) FROM 'supplier.csv' with (format CSV, header true, encoding 'UTF8' )
+SELECT max(id) + 1 as maxid from Supplier;
+\gset
+ALTER SEQUENCE supplier_id_seq restart with :maxid ;
+</pre>
+
+<pre>\echo <cc>-- Importing Product data</cc>
+\copy Product ( ID, Name, SupplierID, ProductCategoryID, UnitQuantity, UnitPrice, UnitsInStock, UnitsOnOrder, ReorderLevel, Discontinued ) FROM 'product.csv' with ( format csv, header true, encoding 'utf8' ) ;
+SELECT max(id) + 1 as maxid from Product ;
+\gset
+ALTER SEQUENCE Product_id_seq restart with :maxid ;
+</pre>
+
+<pre>\echo <cc>-- Importing CustomerOrderItem data</cc>
+\copy CustomerOrderItem ( customerOrderID, productID, unitPrice, quantityOrdered, discount ) FROM 'customer-order-item.csv' with ( format csv, header true, encoding 'utf8' ) ;
+</pre>
+
+<pre>\echo <cc>-- Importing Region data</cc>
+\copy region ( id, name ) FROM 'region.csv' with ( format csv, header true, encoding 'utf8' ) ;
+SELECT max(id) + 1 as maxid from Region;
+\gset
+ALTER SEQUENCE region_id_seq restart with :maxid ;
+</pre>
+
+<!-- h3 --></div>
+
+<h3 cbc>Territory</h3><div>
+
+<p>The <tt>territory.csv</tt> is special again, because the ID is a character string type, not a numeric type as it appears at first sight. Hint: Leading zeroes&hellip; The database table uses an integer ID field as primary generated key, so we omit the ID column in the \copy command:</p>
+
+<pre>\echo <cc>-- Importing Territory data</cc>
+\copy territory ( key, name, regionid ) FROM 'territory.csv' with ( delimiter ',' , format csv, header true, encoding 'utf8' ) ;
+</pre>
+
+<p>For the same reason we don't need to adjust the associated sequence counter; it is still in sync after the copy command.</p>
+
+<!-- h3 --></div>
+
+<h3 cbc>EmployeeTerritory</h3><div>
+
+<p>A look at <tt>employee-territory.csv</tt> shows that <tt>territoryID</tt> uses the alpha key to reference the territory, but our database uses the integer <tt>territoryID</tt> as foreign key. Therefore, the alpha key must be translated into the integer key. We will use a temporary table with the same structure as the <tt>employeeTerritory</tt> table, and add the <tt>territoryKey</tt> column:</p>
+
+<figcaption class="listing">Creating the temporary table</figcaption>
+<pre>CREATE TABLE temporarytable AS TABLE EmployeeTerritory WITH NO DATA ;
+ALTER TABLE temporaryTable ADD COLUMN territoryKey varchar( 8 ) ;
+</pre>
+
+<p>This table will be filled with data from <tt>employee-territory.csv</tt>:</p>
+
+<figcaption class="listing">Filling the temporary table</figcaption>
+<pre>\copy TemporaryTable ( employeeID, territoryKey ) from 'employee-territory.csv' with ( format csv, header true, encoding 'utf8' ) ;
+</pre>
+
+<p>The next step fills the foreign key column <tt>territoryID</tt> based on the values in <tt>territoryKey</tt>:</p>
+
+<figcaption class="listing">Constructing the territoryID</figcaption>
+<pre>UPDATE temporaryTable set territoryID = ( select id from territory where territory.key = temporaryTable.territoryKey ) ;</pre>
+
+<p>Then we can copy the rows from the temporary table into the target table and drop the temporary table:</p>
+
+<figcaption class="listing">Filling the employeeTerritory table</figcaption>
+<pre>INSERT into EmployeeTerritory SELECT EmployeeID, TerritoryID FROM TemporaryTable ;
+DROP TABLE temporaryTable ;
+</pre>
+
+<p>The <tt>employeeTerritory</tt> table's primary key is the combination of two foreing keys, so we don't have to adjust a sequence counter here.</p>
+
+<p>Try:</p>
+
+<figcaption class="listing">Running the code</figcaption>
+<pre><cc>trade=#</cc> \i work.sql<cc>
+-- Importing EmployeeTerritory data
+CREATE TABLE AS
+ALTER TABLE
+COPY 49
+UPDATE 49
+INSERT 0 49
+DROP TABLE
+trade=#</cc></pre>
+
+<p>Works.</p>
+
+<!-- h3 --></div>
+
+<p>The final data import code can be found in <a href="import-data.sql" target="_blank">import-data.sql</a>.</p>
+
+<!-- h2 --></div>
+
+<figcaption class="listing">Running the code</figcaption>
+<pre><cc>trade=#</cc> \i work.sql<cc>
+trade=#</cc></pre>
 
 
 <!--

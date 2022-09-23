@@ -1,0 +1,11 @@
+Category
+Customer
+Employee
+CustomerOrder
+Supplier
+Product
+CustomerOrderItem
+Region
+Territory
+EmployeeTerritory
+Carrier

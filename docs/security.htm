@@ -6,108 +6,262 @@
 <meta name="author" content="USP" />
 <meta name="creation-date" content="2022-02-24" />
 <meta name="editor" content="USP" />
-<meta name="change-date" content="2022-02-24" />
+<meta name="change-date" content="2022-03-03" />
 <meta name="version" content="1" />
 <meta name="categories" content="Programming > Database > Postgres" />
 <meta name="tags" content="programming, database, Postgres, user, role, security, access, permission." />
-<meta name="description" content="In this section we will deal with access management, roles, users, and permissions. The goal is to make the database secure against attacks." />
+<meta name="description" content="In this section we will deal with security. Specifically, configuring the server, databases, roles, users, and permissions. The goal is to make the database secure against attacks and innocence." />
 
 <link rel="stylesheet" href="/inc/page.css" />
  
-<title>Postgres - Access Control</title>
+<title>Postgres - Securitiy and Access Control</title>
 
-</head><body><header id="page-header"></header><div id="main-toolbar"></div><main id="page-content">
+</head><body><header id="page-header"></header><div id="main-toolbar"></div><main id="page-content" cbc-default="collapsed">
 
-<h1>Access Control</h1>
+<h1>Security and Access Control</h1>
 
 <p id="page-abstract"></p>
 
-<h2 cbc>Roles</h2><div>
+<h2 cbc>Installation Default Databases</h2><div>
 
-<figcaption class="listing"></figcaption>
-<pre>CREATE ROLE SalesManager NOLOGIN ;</pre>
+<p>Let's have a look at the available databases right after installation:.</p>
 
-<p>To prevent users from logging in as a role, add the <tt>nologin</tt> argument.</p>
+<figcaption class="listing">Listing default databases in PSQL</figcaption>
+<pre><cc>postgres=#</cc> \conninfo
+<cc>You are connected to database "postgres" as user "postgres" on host "localhost" (address "::1") at port "5432".
+postgres=#</cc> \l+
+<cc>                                                                                   List of databases
+   Name    |  Owner   | Encoding |          Collate           |           Ctype            |   Access privileges   |  Size   | Tablespace |                Description
+-----------+----------+----------+----------------------------+----------------------------+-----------------------+---------+------------+--------------------------------------------
+ postgres  | postgres | UTF8     | English_United States.1252 | English_United States.1252 |                       | 8561 kB | pg_default | default administrative connection database
+ template0 | postgres | UTF8     | English_United States.1252 | English_United States.1252 | =c/postgres          +| 8401 kB | pg_default | unmodifiable empty database
+           |          |          |                            |                            | postgres=CTc/postgres |         |            |
+ template1 | postgres | UTF8     | English_United States.1252 | English_United States.1252 | =c/postgres          +| 8401 kB | pg_default | default template for new databases
+           |          |          |                            |                            | postgres=CTc/postgres |         |            |
+(3 rows)
+postgres=#</cc></pre>
+
+<p>The \l+ command lists the databases and their access privileges in the form <tt>grantee=ACL/grantor</tt>. The access control list (ACL), is a list of permissions, encoded with letters. Their meaning can be looked up <a href="https://www.postgresql.org/docs/14/ddl-priv.html#PRIVILEGE-ABBREVS-TABLE">here</a>. An empty grantee means "the general public" or "everyone". An uppercase <tt>T</tt> is the permission to create temporary tables. A lowercase <tt>c</tt> is the permission to connect to the database. An uppercase <tt>C</tt> is the permission to create objects.</p>
+
+<p>The <tt>postgres</tt> database contains the database catalog, users permissions, et cetera. It appears that the general public has no permission to connect to this database. But have a look&hellip;</p>
+
+<figcaption class="listing">Log-in attempt of Joe Average succeeds</figcaption>
+<pre><cc>postgres=#</cc> CREATE USER joeAverage;
+<cc>CREATE ROLE
+postgres=#</cc> \password joeaverage
+<cc>Enter new password for user "joeaverage":
+Enter it again:
+postgres=#</cc> \c postgres joeaverage
+Password for user joeaverage:
+You are now connected to database "postgres" as user "joeaverage".
+<cc>postgres=></cc></pre>
+
+<p>We might not want that. The countermeasure is to revoke permissions on these database for the general public users:</p>
+
+<figcaption class="listing">Securing default databases in PSQL</figcaption>
+<pre><cc>postgres=#</cc> \c postgres postgres
+<cc>Password for user postgres:
+You are now connected to database "postgres" as user "postgres".
+postgres=#</cc> REVOKE all ON DATABASE postgres, template0, template1 FROM public;
+<cc>REVOKE
+postgres=#</cc> \c postgres joeaverage
+Password for user joeaverage:
+connection to server at "localhost" (::1), port 5432 failed: FATAL:  permission denied for database "postgres"
+DETAIL:  User does not have CONNECT privilege.
+Previous connection kept
+<cc>postgres=></cc></pre>
+
+<p>That's better. The dabatase access privileges have changed:</p>
+
+<figcaption class="listing">Permissions on default databases now</figcaption>
+<pre><cc>postgres=#</cc> \l
+<cc>                                          List of databases
+-----------+----------+----------+----------------------------+----------------------------+-----------------------
+    Name    |  Owner   | Encoding |          Collate           |           Ctype            |   Access privileges
+-----------+----------+----------+----------------------------+----------------------------+-----------------------
+ postgres  | postgres | UTF8     | English_United States.1252 | English_United States.1252 | postgres=CTc/postgres
+ template0 | postgres | UTF8     | English_United States.1252 | English_United States.1252 | postgres=CTc/postgres
+ template1 | postgres | UTF8     | English_United States.1252 | English_United States.1252 | postgres=CTc/postgres
+(3 rows)
+<cc>postgres=#</cc></pre>
 
 <!-- h2 --></div>
 
-<h2 cbc>Users</h2><div>
+<h2 cbc>New Databases</h2><div>
 
-<p>USER in Postgres is actually an alias for ROLE, but USER makes sense because users can log-in, roles cannot (or should not). Roles should only used as permission providers to users.</p>
+<p>Let's create a new database and inspect it.</p>
 
-<figcaption class="listing"></figcaption>
-<pre>CREATE USER JohnSmith LOGIN PASSWORD 'JohnSmith' ;
-GRANT SalesManager TO JohnSmith ;</pre>
+<figcaption class="listing">Creating a new database</figcaption>
+<pre><cc>postgres=#</cc> CREATE DATABASE demo;
+<cc>CREATE DATABASE
+postgres=#</cc> \l
+<cc>                                                 List of databases
+   Name    |  Owner   | Encoding |          Collate           |           Ctype            |   Access privileges
+-----------+----------+----------+----------------------------+----------------------------+-----------------------
+ demo      | postgres | UTF8     | English_United States.1252 | English_United States.1252 |
+ postgres  | postgres | UTF8     | English_United States.1252 | English_United States.1252 | postgres=CTc/postgres
+ template0 | postgres | UTF8     | English_United States.1252 | English_United States.1252 | postgres=CTc/postgres
+ template1 | postgres | UTF8     | English_United States.1252 | English_United States.1252 | postgres=CTc/postgres
+(4 rows)
+postgres=#</cc></pre>
+
+<p>Looks good, but&hellip;</p>
+
+<figcaption class="listing">Joe Average cannot use psql</figcaption>
+<pre><cc>postgres=#</cc> \c demo joeaverage
+<cc>Password for user joeaverage:
+You are now connected to database "demo" as user "joeaverage".
+demo=></cc></pre>
+
+<p>Joe Average can connect to the new database, view, create and delete database object at will. Similar to securing the default databases, we need to configure the new database accordingly:</p>
+
+<figcaption class="listing">Revoke permissions on a new database</figcaption>
+<pre><cc>postgres=#</cc>\c postgres postgres
+<cc>Password for user postgres:
+You are now connected to database "postgres" as user "postgres".
+postgres=#</cc> REVOKE all ON DATABASE demo FROM public;
+<cc>REVOKE
+postgres=#</cc> \c postgres joeaverage
+<cc>Password for user joeAverage:
+connection to server at "localhost" (::1), port 5432 failed: FATAL:  permission denied for database "demo"
+DETAIL:  User does not have CONNECT privilege.
+Previous connection kept
+postgres=#</cc>
+</pre>
+
+<p>That's better.</p>
 
 <!-- h2 --></div>
 
-<h2 cbc>Visibility and Namespaces</h2><div>
+<h2 cbc>Schemas</h2><div>
 
-<p>In Postgres, a <tt>schema</tt> object essentially is a <em>namespace</em>. A schema contains database object, such as tables, view, functions. Roles can be granted create and/or usage permissions on schemas. If a role has no use permission on a schema, that role cannot see (and use) the object inside.</p>
+<p>Schemas in Postgres are <em>namespaces</em>. The default namespace is called "public". Additional schemas can be created to manage names and permissions. Different objects can have the same name as long as they are defined in different namespaces. To address and object in a specific namespace, use the dot syntax:</p>
 
-<figcaption class="listing">Show schemas and their permissions</figcaption>
-<pre><cc>trade=#</cc> \dn+<cc>
-                          List of schemas
-  Name  |  Owner   |  Access privileges   |      Description      
+<figcaption class="listing">Qualified object names</figcaption>
+<pre>schema-name.object-name</pre>
+
+<p>In theory, schema-qualified names are a good thing, but not so much used in practice. One reason might be that moving an object to a different schema breaks existing code (queries, store procedures, scripts, etc.). To solve this problem, the <tt>search_path</tt> can be used. The schemas are searched in the order of appearance in the search path, until an object with a matching name is found.</p>
+
+<p>The search path can be shown with the <tt>SHOW search_path;</tt> and modified with the <tt>SET search_path schema-list;</tt>commands. The default value for a new user is <tt>"$user", public</tt>, where "$user" is the name of the current user, <tt>joeaverage</tt> for example.</p>
+
+<p>The schemas and their privileges can be listed with the <tt>\dn+</tt> command:</p>
+
+<figcaption class="listing">Listing namespaces in PSQL</figcaption>
+<pre><cc>postgres=#</cc> \c demo postgres
+<cc>Password for user postgres:
+You are now connected to database "demo" as user "postgres".
+demo=#</cc> \dn+
+<cc>                          List of schemas
+  Name  |  Owner   |  Access privileges   |      Description
 --------+----------+----------------------+------------------------
  public | postgres | postgres=UC/postgres+| standard public schema
         |          | =UC/postgres         |
 (1 row)
-trade=#</cc></pre>
+demo=#</cc></pre>
 
-<ul>
-<li>User <tt>postgres</tt> has the permissions USE and CREATE on the PUBLIC schema, granted by the user postgres</li>
-<li>User <tt>public</tt> has the permissions USE and CREATE on the PUBLIC schema, granted by the user postgres.</li>
-</ul>
+<p>The \dn+ command lists the namespaces and their access privileges in the form <tt>grantee=ACL/grantor</tt>. The access control list (ACL), is a list of permissions, encoded with letters. Their meaning can be looked up <a href="https://www.postgresql.org/docs/14/ddl-priv.html#PRIVILEGE-ABBREVS-TABLE">here</a>. An empty grantee means "the general public" or "everyone". An uppercase <tt>C</tt> is the permission to create database object in that namespace. An uppercase <tt>U</tt> is the permission to use the schema.</p>
 
-<p>Revoke the permission to connect for the general public:</p>
+<p>As we can see, the general public has the permissions <tt>usage</tt> and <tt>create</tt> on the schema <tt>public</tt>. The <tt>create</tt> permission is generally considered harmful, because a malicious user can create objects that hides objects with the same name in another namespace, and thereby alter the behavior of exisiting queries. So it is <em>strongly</em> advised to remove that permission from the general public.</p>
 
-<figcaption class="listing">Show modified permissions</figcaption>
-<pre><cc>trade=#</cc> REVOKE CREATE on schema public from public ;<cc>
-REVOKE
-trade=#</cc> \dn+<cc>
-                          List of schemas
-  Name  |  Owner   |  Access privileges   |      Description      
---------+----------+----------------------+------------------------
- public | postgres | postgres=UC/postgres+| standard public schema
-        |          | =U/postgres         |
+<p>To be on the safe side, all permissions on schemas should be withdrawn from the general public. Then they can be granted to selected roles in a controlled manner. To achieve that, use the follwing statement:</p>
+
+<figcaption class="listing">Revoking schema privileges</figcaption>
+<pre><cc>demo=#</cc> REVOKE ALL ON SCHEMA public FROM public, postgres;
+<cc>REVOKE
+demo=# \dn+
+                        List of schemas
+  Name  |  Owner   | Access privileges |      Description
+--------+----------+-------------------+------------------------
+ public | postgres |                   | standard public schema
 (1 row)
-trade=#</cc></pre>
+demo=#</cc></pre>
 
-<p>Now, ordinary user cannot create objects in the <tt>public</tt> schema.</p>
-<p>Better yet is to also revoke the use of the public schema:</p>
+<p>Because the user <tt>postgres</tt> inherits permissions from his role as owner, withdrawing permissions has no real adverse effect, but the \dn+ listing is kept clean.</p>
 
-<figcaption class="listing">Revode all and show modified permissions</figcaption>
-<pre><cc>trade=#</cc> REVOKE all on schema public from public ;<cc>
-REVOKE
-trade=#</cc> \dn+<cc>
-                          List of schemas
-  Name  |  Owner   |  Access privileges   |      Description      
---------+----------+----------------------+------------------------
- public | postgres | postgres=UC/postgres+| standard public schema
+<p>Another good idea is to set up default privileges on schema:</p>
+
+<figcaption class="listing">Default schema privileges</figcaption>
+<pre><cc>demo=#</cc> ALTER DEFAULT PRIVILEGES REVOKE all ON schemas FROM public;  
+<cc>ALTER DEFAULT PRIVILEGES
+demo=#</cc></pre>
+
+<p>Schemas created from now on will have set up the default permissions as defined here.</p>
+
+<p>To allow users to connect to the database, they must be granted connect permission. Additionally, a schema for personal use should be created:</p>
+
+<figcaption class="listing">Granting database access to a user</figcaption>
+<pre><cc>demo=#</cc> GRANT connect ON DATABASE demo TO joeAverage;
+<cc>GRANT
+demo=#</cc> CREATE SCHEMA joeaverage AUTHORIZATION joeaverage;
+CREATE SCHEMA
+</pre>
+
+<p>Because the owner is <tt>joeaverage</tt>, Joe will have full access to it.</p>
+
+<p>Now the user can connect and use his personal namespace:</p>
+
+<figcaption class="listing">Default search path for a user</figcaption>
+<pre>
+<cc>demo=#</cc> \c demo joeaverage
+<cc>Password for user joeaverage:
+You are now connected to database "demo" as user "joeaverage".
+demo=></cc> show search_path;
+<cc>   search_path
+-----------------
+ "$user", public
 (1 row)
-trade=#</cc></pre>
+demo=></cc></pre>
+
+<p>The double-quoted <tt>$user</tt> term is expanded to the user name, <tt>joeaverage</tt>. It is the first in the search path and thus is the current namespace. If Joe creates a database object, it will be created in his personal namespace:</p>
+
+<figcaption class="listing">New objects are created in the personal schema:</figcaption>
+<pre><cc>demo=#</cc> CREATE TABLE ja (id integer);
+<cc>CREATE TABLE
+demo=> \d+
+                                      List of relations
+   Schema   | Name | Type  |   Owner    | Persistence | Access method |  Size   | Description
+------------+------+-------+------------+-------------+---------------+---------+-------------
+ joeaverage | ja   | table | joeaverage | permanent   | heap          | 0 bytes |
+(1 row)
+demo=></cc></pre>
+
+<p>Joe is not able to create objects in the public namespace:</p>
+
+<figcaption class="listing">The public schema is not accessible for joe</figcaption>
+<pre><cc>demo=#</cc> CREATE TABLE public.ja2 (id integer);
+<cc>ERROR:  permission denied for schema public
+LINE 1: CREATE TABLE public.ja2 (id integer);
+                     ^
+demo=></cc></pre>
 
 <!-- h2 --></div>
 
-<h2 cbc>Permissions</h2><div>
+<h2 cbc>Roles and Users</h2><div>
 
-<p>Permissions on database objects can be granted to roles.</p>
+<p>USERs and ROLEs in Postgres are the same thing, USER is an alias for ROLE. Nevertheless, it makes sense for the database administrator: Roles have no log-in permission and act as a permission provider to users, and users "inherit" permissions from roles and have the permission to connect to (one or more) databases.</p>
 
-<figcaption class="listing"></figcaption>
-<pre>GRANT insert, select, update ON customer TO sales ;
-REVOKE delete ON customer TO sales ;
+<p>So let's create the <tt>SalesManager</tt> role:</p>
+
+<figcaption class="listing">Creating a role</figcaption>
+<pre>CREATE ROLE SalesManager NOLOGIN ;
+GRANT connect, temporary ON DATABASE demo TO SalesManager;
+GRANT select,insert,update, delete, references, trigger ON all tables IN SCHEMA sales TO SalesManager;
 </pre>
 
+<p>Don't forget the <tt>nologin</tt> options in the <tt>create</tt> statement. Then grant the permission to connect to the database <tt>demo</tt> and use temporary tables. Finally, grant permissions to work with tables in the <tt>sales</tt> namespace.</p>
+
+<p>To reate a user, add the <tt>login</tt> option. To make him a member of the sales manager team, grant the role <tt>SalesManager</tt>. Then alter the search path for the demo database. That should help the user to find the tables.</p>
+
+<p>Note that setting the search path on the nologin-role does not seem to work.</p>
+
 <figcaption class="listing"></figcaption>
-<pre> </pre>
-
-
-
-<figcaption class="listing"></figcaption>
-<pre>ALTER DEFAULT PRIVILEGES
-    GRANT insert, select, update on tables TO sales ;
+<pre>CREATE USER JohnDoe LOGIN ;
+GRANT SalesManager TO JohnDoe ;
+ALTER USER JohnDoe IN DATABASE demo SET search_path to "$user", public, sales;
+\password JohnDoe
 </pre>
+
+<p>Finally, set the password with the <tt>psql</tt> slash-command, NOT the <tt>alter user</tt> SQL command, because the SQL command store the password in clear text in the log files.</p>
 
 <!-- h2 --></div>
 

@@ -10,18 +10,66 @@
 <meta name="version" content="1" />
 <meta name="categories" content="Programming > Database > Postgres" />
 <meta name="tags" content="programming, database, postgresql, postgres" />
-<meta name="description" content="PostgreSQL is an oldie, and one of the most respected database engines on his planet." />
+<meta name="description" content="PostgreSQL is one of the most respected database engines on his planet, open source and freeware. This tutorial demonstrates how to setup and get started with Postgres." />
 
 <link rel="stylesheet" href="/inc/page.css" />
  
 <title>Database - PostgreSQL</title>
 
-</head><body><header id="page-header"></header><div id="main-toolbar"></div><main id="page-content">
+</head><body><header id="page-header"></header><div id="main-toolbar"></div><main id="page-content" cbc-default="collapsed">
 
 <h1>PostgreSQL</h1>
 
 <p id="page-abstract"></p>
 
-<p>TODO: Write indroduction</p>
+<h2 cbc>Components</h2><div>
+
+<p>Postgres comes as a package with several components:</p>
+
+<dl class="description-list">
+<dt>The Database Server</dt>
+<dd>The database server runs as service or plain executable and communicates over Unix domain sockets or IP sockets.</dd>
+
+<dt>pg_ctl.exe</dt>
+<dd>A utility to initialize and control a PostgreSQL server. To start the server, run the following command:
+<pre class="box">D:\progs\pg\bin\pg_ctl.exe" start -D "D:\progs\pg\data"</pre></dd>
+<dd>The <tt>-D</tt> argument specifies the data directory and is mandatory.</dd>
+<dd>On Windows, the Postgres server can be started as a service:
+<pre class="box">"D:\progs\pg\bin\pg_ctl.exe" runservice -N "postgresql-x64-14" -D "D:\progs\pg\data" -w</pre></dd>
+<dd>The service name may have to be adjusted to your system.</dd>
+<dd>Documentation: <a href="https://www.postgresql.org/docs/14/app-pg-ctl.html">www.postgresql.org</a></dd>
+
+<dt>psql.exe</dt>
+<dd>This is the Interactive Postgres terminal, used for database maintenance, configuration, data retrieval, data import and export, and scripting. This workhorse will be used extensively in the tutorials.</dd>
+<dd>Documentation: <a href="https://www.postgresql.org/docs/14/app-psql.html">www.postgresql.org</a></dd>
+
+<dt>pgadmin</dt>
+<dd>Postgres database administration GUI. Not covered in this tutorial; I strongly recommend to learn the concepts and SQL commands with psql first, otherwise you could easily get overwhelmed by the complexity of this tool.</dd>
+
+<dt>Client Interfaces and Drivers</dt>
+<dd>ODBC, JDBC drivers and .NET adapters are available, as well as libraries for C, C++, TCL, Go, Python, ECPG for embedding SQL in C source code, JavaScript drivers for Node and Deno et cetera. More information at <a href="https://www.postgresql.org/docs/14/external-interfaces.html">postgresql.org</a>.</dd>
+</dl>
+
+<!-- h2 --></div>
+
+<h2 cbc>Installation</h2><div>
+
+<p>Download and run the installer package from <a href="https://www.postgresql.org/download/">www.postgresql.org</a>. To follow this tutorial, select the PostgreSQL Server and Command Line Tools. PgAdmin and Stack Builder are not required yet. Set the installation and data directories, and the server's socket port number. Then select the locale that suits your preferences. If you are unsure, use the default value.</p>
+
+<p>A few minutes later you should have a running Postgres server running on your system.</p>
+
+<p>NOTE that you can install server and client tools on different machines. This makes sense in a production environment.</p>
+
+<!-- h2 --></div>
+
+<h2 cbc>What's Next?</h2><div>
+
+<p>The <a href="./first-steps/first-steps.htm">first steps</a> tutorial guides you through a database setup and initial data import scenario. Many aspects of a real-world database are covered, including <tt>psql</tt> usage, PSQL scripting, data transformation during import, relational concepts, concurrent update conflict prevention, groups and users setup, and data query examples.</p>
+
+<p>The next sections cover more specific aspects. SQL in general will be covered in a separate section, here are only some Postgres-specific articles.</p>
+
+<p>The series is complemented with an example that integrates a Postgres database with an interface running on Deno, the next-generation Node.js.</p>
+
+<!-- h2 --></div>
 
 </main><footer id="page-footer"></footer><script type="module" src="/inc/page.js" ></script></body></html>

@@ -37,6 +37,61 @@
 
 <!-- h2 --></div>
 
+<h2 cbc>Old And New Row Versions</h2><div>
+
+<p>To understand the implications, we must consider how <tt>old</tt> and <tt>new</tt> record versions are presented to a trigger function when an update statement is executed. Lets consider a simple table with three columns, <tt>id</tt>, <tt>rg</tt>, and <tt>content</tt>.</p>
+
+<figcaption class="listing">Column structure</figcaption>
+<pre>CREATE TABLE test (
+    id integer primary key not null ,
+    rg integer not null default 1 ,
+    content text not null default '' 
+    ) ;
+</pre>
+
+<p>An update statement can have the following forms:</p>
+
+<figcaption class="listing">Forms of an update statement</figcaption>
+<pre>UPDATE test SET rg=123, content='abc' where id=234 ;
+UPDATE test SET rg=NULL, content='abc' where id=234 ;
+UPDATE test SET content='abc' where id=234 ;
+</pre>
+
+<p>Note that an update statement can <em>indeed</em> supply a null value in the <tt>rg</tt> field, although the column has been defined with a <tt>not null</tt> constraint. The trigger function we are going to implement here will take care of that.</p>
+
+<p>Summarized, an update statement can include the <tt>rg</tt> column and supply a value, or null, or omit the column and there by not supply a new <tt>rg</tt> value. The following tables details how an update trigger function would see the <tt>old</tt> and <tt>new</tt> record versions in these situations:</p>
+
+<figcaption class="table">Row version content</figcaption>
+<table class="flat-borders"><tbody><tr>
+	<td colspan="4">Update statement</td>
+</tr><tr>
+	<td>includes rg</td>
+	<td>yes</td>
+	<td>yes</td>
+	<td>no</td>
+</tr><tr>
+	<td>and supplies</td>
+	<td>new value</td>
+	<td>null</td>
+	<td>nothing</td>
+</tr><tr>
+	<td colspan="4">Trigger function sees</td>
+</tr><tr>
+	<td>new.rg</td>
+	<td>new value</td>
+	<td>null</td>
+	<td>old.value</td>
+</tr><tr>
+	<td>old.rg</td>
+	<td>old value</td>
+	<td>old.value</td>
+	<td>old.value</td>
+</tr></tbody></table>
+
+<p>Having laid out the basis, we can now turn to the detailed scenario analysis.</p>
+
+<!-- h2 --></div>
+
 <h2 cbc>Scenario Analysis</h2><div>
 
 <p>Before we can write code, it is necessary to evaluate possible update scenarios. We consider having three users, Alice, Bob and Charlie, where Alice produced the initial state of the record, which Bob reads and later updates in scenarioes A to D. In scenarios E to H, Charlie also reads that same record, then Charlie updates, then Bob updates. This essentially is a concurrent update conflict, with a possible loss of data if not detected and properly handled.</p>
@@ -52,7 +107,7 @@
 <dd>Bob writes the incorrect value <tt>rg + 2</tt> (or an even larger value), which is considered an error.</dd>
 
 <dt>Scenario D</dt>
-<dd>Bob supplies NULL for <tt>rg</tt> to indicate that a potential update conflict should be ignored.</dd>
+<dd>Bob supplies NULL in <tt>rg</tt> to indicate that a potential update conflict should be ignored.</dd>
 
 <dt>Scenario E</dt>
 <dd>Bob does not suppy any value for <tt>rg</tt>, the column is simply not included in the update statement. This is considered an error.</dd>
@@ -182,21 +237,6 @@
 	<td>yes</td>
 </tr></tbody></table>
 
-<p>To understand the implications, we must consider how a trigger functions deals with old and new record versions.</p>
-
-<table class="flat-borders"><thead><tr>
-	<th></th>
-</tr></thead><tbody><tr>
-	<th>Update statement supplies</th>
-	<td>new value</td>
-</tr><tr>
-	<th>new.col</th>
-	<td>new value</td>
-</tr><tr>
-	<td>old.col</td>
-	<td>old value</td>
-</tr></tbody></table>
-
 <dl>
 <dt>Scenario A</dt>
 <dd>Bob writes the original <tt>rg</tt> value instead of the incremented value, and the new row is different from the old row. The algorithm considers this as an update conflict, the record will not be updated. </dd>
@@ -242,13 +282,13 @@
 
 <!-- h2 --></div>
 
-<h2 cbc>Concurrent Update Conflict Detection Function</h2><div>
+<h2 cbc>Implementing the Trigger Function</h2><div>
 
 <p>We need a function to be called by an update trigger that checks and increments an update counter in the record, the <tt>rg</tt> field, a shorthand for "record generation".</p>
 
 <p>Here is the suggested implementation:</p>
 
-<figcaption class="listing"></figcaption>
+<figcaption class="listing">The trigger function</figcaption>
 <pre>CREATE or replace FUNCTION incrementRowGen ( ) returns trigger as $$ BEGIN
 -- Increment row generation counter in a record.
 IF new.rg is null OR old.rg + 1 = new.rg THEN
@@ -264,7 +304,7 @@ END ; $$ LANGUAGE PLPGSQL ;
 
 <p>The code above accesses two row versions, <em>old</em>, which represents the current state in the database, and <em>new</em>, as requested by the caller. If the caller's old record version is the same as the current old version in the database, then <tt>old.rg + 1</tt> should be equal to <tt>new.rg</tt>, so the caller can consider the record unchanged and the update shall succeed. On the contrary, if someone else has updated the record in the meantime and thereby incremented <tt>rg</tt>, <tt>old.rg + 1</tt> should be (at least by one) greater than the new <tt>rg</tt> value as supplied by the caller. This is a concurrent update conflict situation. The trigger function returns NULL to abort the update statement.</p>
 
-<p>If the caller supplies NULL in the <tt>rg</tt> column, a concurrent update conflict will be ignored, and the record is updates with the values supplied by the caller.</p>
+<p>If the caller supplies NULL in the <tt>rg</tt> column, a concurrent update conflict will be ignored, <tt>rg</tt> will be incremented and the record will be updated.</p>
 
 <p>Insert the code above into <tt>work.sql</tt> and execute it:</p>
 
